@@ -6,7 +6,9 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use frame_system::{EnsureRoot, EnsureSigned};
 use pallet_grandpa::AuthorityId as GrandpaId;
+use pallet_nfts::PalletFeatures;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -23,7 +25,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-use frame_support::genesis_builder_helper::{build_config, create_default_config};
+use frame_support::{genesis_builder_helper::{build_config, create_default_config}, traits::AsEnsureOriginWithArg};
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
@@ -233,9 +235,6 @@ impl pallet_timestamp::Config for Runtime {
 	type WeightInfo = ();
 }
 
-/// Existential deposit.
-pub const EXISTENTIAL_DEPOSIT: u128 = 500;
-
 impl pallet_balances::Config for Runtime {
 	type MaxLocks = ConstU32<50>;
 	type MaxReserves = ();
@@ -279,6 +278,59 @@ impl pallet_template::Config for Runtime {
 	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }
 
+/// The existential deposit.
+pub const EXISTENTIAL_DEPOSIT: Balance = 1 * CENTS;
+
+pub const UNITS: Balance = 1_000_000_000_000;
+pub const CENTS: Balance = UNITS / 30_000;
+pub const GRAND: Balance = CENTS * 100_000;
+pub const MILLICENTS: Balance = CENTS / 1_000;
+
+pub const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
+}
+
+parameter_types! {
+	pub NftsPalletFeatures: PalletFeatures = PalletFeatures::all_enabled();
+	pub const NftsMaxDeadlineDuration: BlockNumber = 12 * 30 * DAYS;
+	// re-use the Uniques deposits
+	pub const NftsCollectionDeposit: Balance = UNITS / 10; // 1 / 10 UNIT deposit to create a collection
+	pub const NftsItemDeposit: Balance = UNITS / 1_000; // 1 / 1000 UNIT deposit to mint an item
+	pub const NftsMetadataDepositBase: Balance = deposit(1, 129);
+	pub const NftsAttributeDepositBase: Balance = deposit(1, 0);
+	pub const NftsDepositPerByte: Balance = deposit(0, 1);
+}
+
+
+impl pallet_nfts::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type CollectionId = u32;
+	type ItemId = u32;
+	type Currency = Balances;
+	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+	type ForceOrigin = EnsureRoot<AccountId>;
+	type Locker = ();
+	type CollectionDeposit = NftsCollectionDeposit;
+	type ItemDeposit = NftsItemDeposit;
+	type MetadataDepositBase = NftsMetadataDepositBase;
+	type AttributeDepositBase = NftsAttributeDepositBase;
+	type DepositPerByte = NftsDepositPerByte;
+	type StringLimit = ConstU32<256>;
+	type KeyLimit = ConstU32<64>;
+	type ValueLimit = ConstU32<256>;
+	type ApprovalsLimit = ConstU32<20>;
+	type ItemAttributesApprovalsLimit = ConstU32<30>;
+	type MaxTips = ConstU32<10>;
+	type MaxDeadlineDuration = NftsMaxDeadlineDuration;
+	type MaxAttributesPerCall = ConstU32<10>;
+	type Features = NftsPalletFeatures;
+	type OffchainSignature = Signature;
+	type OffchainPublic = <Signature as Verify>::Signer;
+	type WeightInfo = pallet_nfts::weights::SubstrateWeight<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type Helper = ();
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime {
@@ -291,6 +343,7 @@ construct_runtime!(
 		Sudo: pallet_sudo,
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
+		Nfts: pallet_nfts,
 	}
 );
 
