@@ -8,8 +8,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-parity-scale-codec = { version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.6.1", default-features = false, features = [
+	"derive",
+	"max-encoded-len",
+] }
+scale-info = { version = "2.10.0", default-features = false, features = [
+	"derive",
+] }
 log = { version = "0.4.17", default-features = false }
 serde = { version = "1.0.188", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
@@ -74,7 +79,9 @@ pallet-scheduler = { path = "../../../substrate/frame/scheduler", default-featur
 pallet-session = { path = "../../../substrate/frame/session", default-features = false, version = "25.0.0" }
 pallet-society = { path = "../../../substrate/frame/society", default-features = false, version = "25.0.0" }
 pallet-sudo = { path = "../../../substrate/frame/sudo", default-features = false, version = "25.0.0" }
-frame-support = { path = "../../../substrate/frame/support", default-features = false, features = ["tuples-96"], version = "25.0.0" }
+frame-support = { path = "../../../substrate/frame/support", default-features = false, features = [
+	"tuples-96",
+], version = "25.0.0" }
 pallet-staking = { path = "../../../substrate/frame/staking", default-features = false, version = "25.0.0" }
 frame-system = { path = "../../../substrate/frame/system", default-features = false, version = "25.0.0" }
 frame-system-rpc-runtime-api = { path = "../../../substrate/frame/system/rpc/runtime-api", default-features = false, version = "23.0.0" }
@@ -100,7 +107,7 @@ polkadot-parachain-primitives = { path = "../../parachain", default-features = f
 xcm = { package = "staging-xcm", path = "../../xcm", default-features = false, version = "4.0.0" }
 xcm-executor = { package = "staging-xcm-executor", path = "../../xcm/xcm-executor", default-features = false, version = "4.0.0" }
 xcm-builder = { package = "staging-xcm-builder", path = "../../xcm/xcm-builder", default-features = false, version = "4.0.0" }
-
+xcm-payment-runtime-api = { package = "xcm-payment-runtime-api", path = "../../xcm/xcm-builder/xcm-payment-runtime-api", default-features = false, version = "0.0.1" }
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", path = "../../../substrate/primitives/keyring" }
@@ -115,7 +122,7 @@ tokio = { version = "1.24.2", features = ["macros"] }
 substrate-wasm-builder = { path = "../../../substrate/utils/wasm-builder", optional = true, version = "14.0.0" }
 
 [features]
-default = [ "std" ]
+default = ["std"]
 no_std = []
 std = [
 	"authority-discovery-primitives/std",
@@ -203,6 +210,7 @@ std = [
 	"xcm-builder/std",
 	"xcm-executor/std",
 	"xcm/std",
+	"xcm-payment-runtime-api/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -311,9 +319,9 @@ try-runtime = [
 # Set timing constants (e.g. session period) to faster versions to speed up testing.
 fast-runtime = []
 
-runtime-metrics = [ "runtime-parachains/runtime-metrics", "sp-io/with-tracing" ]
+runtime-metrics = ["runtime-parachains/runtime-metrics", "sp-io/with-tracing"]
 
 # A feature that should be enabled when the runtime should be build for on-chain
 # deployment. This will disable stuff that shouldn't be part of the on-chain wasm
 # to make it smaller like logging for example.
-on-chain-release-build = [ "sp-api/disable-logging" ]
+on-chain-release-build = ["sp-api/disable-logging"]

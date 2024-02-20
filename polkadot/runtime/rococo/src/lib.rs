@@ -64,6 +64,7 @@ use beefy_primitives::{
 
 use frame_support::{
 	construct_runtime,
+	dispatch::GetDispatchInfo,
 	genesis_builder_helper::{build_config, create_default_config},
 	parameter_types,
 	traits::{
@@ -96,7 +97,10 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use xcm::{
-	latest::{InteriorMultiLocation, Junction, Junction::PalletInstance},
+	latest::{
+		AssetId, ExecuteXcm, InteriorMultiLocation, Junction, Junction::PalletInstance,
+		PreparedMessage, Xcm,
+	},
 	VersionedMultiLocation,
 };
 use xcm_builder::PayOverXcm;
@@ -1593,6 +1597,27 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl xcm_payment_runtime_api::XcmPaymentRuntimeApi<Block, RuntimeCall> for Runtime {
+
+		fn query_accepted_payment_assets() -> Option<Vec<AssetId>> {
+			None
+		}
+
+		fn query_call_to_weight(call: RuntimeCall) -> Weight{
+			call.get_dispatch_info()
+				.weight
+		}
+
+		fn query_weight_to_asset_fee(asset: AssetId, weight: Weight) -> Option<u128> {
+			None
+		}
+
+		fn query_xcm_weight(message: Xcm<RuntimeCall>) -> Result<Weight, Xcm<RuntimeCall>> {
+			<xcm_executor::XcmExecutor<xcm_config::XcmConfig>>::prepare(message)
+			.map(|wm| wm.weight_of())
+		}
+	}
+
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			OpaqueMetadata::new(Runtime::metadata().into())
@@ -2205,6 +2230,7 @@ sp_api::impl_runtime_apis! {
 			build_config::<RuntimeGenesisConfig>(config)
 		}
 	}
+
 }
 
 #[cfg(all(test, feature = "try-runtime"))]

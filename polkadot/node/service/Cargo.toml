@@ -128,6 +128,10 @@ polkadot-node-core-pvf-checker = { path = "../core/pvf-checker", optional = true
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true, version = "4.0.0" }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true, version = "4.0.0" }
 
+xcm = { package = "staging-xcm", path = "../../xcm", default-features = false, version = "4.0.0" }
+xcm-builder = { package = "staging-xcm-builder", path = "../../xcm/xcm-builder", default-features = false, version = "4.0.0" }
+xcm-payment-runtime-api = { package = "xcm-payment-runtime-api", path = "../../xcm/xcm-builder/xcm-payment-runtime-api", default-features = false, version = "0.0.1" }
+
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
@@ -137,9 +141,9 @@ serial_test = "2.0.0"
 tempfile = "3.2"
 
 [features]
-default = [ "db", "full-node" ]
+default = ["db", "full-node"]
 
-db = [ "service/rocksdb" ]
+db = ["service/rocksdb"]
 
 full-node = [
 	"kvdb-rocksdb",
@@ -170,8 +174,8 @@ full-node = [
 ]
 
 # Configure the native runtimes to use.
-westend-native = [ "westend-runtime", "westend-runtime-constants" ]
-rococo-native = [ "rococo-runtime", "rococo-runtime-constants" ]
+westend-native = ["westend-runtime", "westend-runtime-constants"]
+rococo-native = ["rococo-runtime", "rococo-runtime-constants"]
 
 runtime-benchmarks = [
 	"frame-benchmarking-cli/runtime-benchmarks",
@@ -202,12 +206,9 @@ try-runtime = [
 	"sp-runtime/try-runtime",
 	"westend-runtime?/try-runtime",
 ]
-fast-runtime = [
-	"rococo-runtime?/fast-runtime",
-	"westend-runtime?/fast-runtime",
-]
+fast-runtime = ["rococo-runtime?/fast-runtime", "westend-runtime?/fast-runtime"]
 
-malus = [ "full-node" ]
+malus = ["full-node"]
 runtime-metrics = [
 	"polkadot-runtime-parachains/runtime-metrics",
 	"rococo-runtime?/runtime-metrics",

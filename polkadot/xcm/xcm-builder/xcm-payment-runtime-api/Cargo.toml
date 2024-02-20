@@ -1,0 +1,34 @@
+[package]
+name = "xcm-payment-runtime-api"
+version = "0.0.1"
+authors.workspace = true
+edition.workspace = true
+license = "Apache-2.0"
+homepage = "https://substrate.io"
+repository.workspace = true
+description = ""
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = [
+	"derive",
+] }
+
+sp-api = { path = "../../../../substrate/primitives/api", default-features = false, version = "23.0.0" }
+sp-runtime = { path = "../../../../substrate/primitives/runtime", default-features = false, version = "28.0.0" }
+sp-weights = { path = "../../../../substrate/primitives/weights", default-features = false, version = "24.0.0" }
+xcm = { package = "staging-xcm", path = "../..", default-features = false, version = "4.0.0" }
+frame-support = { path = "../../../../substrate/frame/support", default-features = false, version = "25.0.0" }
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"sp-api/std",
+	"sp-runtime/std",
+	"sp-weights/std",
+	"xcm/std",
+	"frame-support/std",
+]
