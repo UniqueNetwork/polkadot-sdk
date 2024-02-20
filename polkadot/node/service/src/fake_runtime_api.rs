@@ -401,15 +401,11 @@ sp_api::impl_runtime_apis! {
 
 	impl xcm_payment_runtime_api::XcmPaymentRuntimeApi<Block, RuntimeCall> for Runtime {
 
-		fn query_accepted_payment_assets() -> Option<Vec<AssetId>> {
+		fn query_acceptable_payment_assets() -> Vec<AssetId> {
 			unimplemented!()
 		}
 
-		fn query_call_to_weight(_: RuntimeCall) -> Weight{
-			unimplemented!()
-		}
-
-		fn query_weight_to_asset_fee(_: AssetId, _: Weight) -> Option<u128> {
+		fn query_weight_to_asset_fee(_: Weight, _: AssetId) -> Option<u128> {
 			unimplemented!()
 		}
 

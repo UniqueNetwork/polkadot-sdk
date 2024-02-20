@@ -19,30 +19,23 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Codec;
-use frame_support::dispatch::{DispatchInfo, GetDispatchInfo};
 
 use sp_api::vec::Vec;
-use sp_runtime::traits::Dispatchable;
 use sp_weights::Weight;
 use xcm::latest::{AssetId, Xcm};
 sp_api::decl_runtime_apis! {
 
-	#[api_version(4)]
 	pub trait XcmPaymentRuntimeApi<Call>
 	where
 		Call: Codec,
 	{
 		/// TODO.
-		fn query_accepted_payment_assets() -> Option<Vec<AssetId>>;
+		fn query_acceptable_payment_assets() -> Vec<AssetId>;
 
 		/// TODO
-		fn query_call_to_weight(call: Call) -> Weight;
-
-		/// TODO
-		fn query_weight_to_asset_fee(asset: AssetId, weight: Weight) -> Option<u128>;
+		fn query_weight_to_asset_fee(weight: Weight, asset: AssetId) -> Option<u128>;
 
 		/// TODO
 		fn query_xcm_weight(message: Xcm<Call>) -> Result<Weight, Xcm<Call>>;
-
 	}
 }
