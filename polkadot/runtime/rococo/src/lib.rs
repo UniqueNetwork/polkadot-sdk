@@ -72,7 +72,7 @@ use frame_support::{
 		KeyOwnerProofSystem, LinearStoragePrice, PrivilegeCmp, ProcessMessage, ProcessMessageError,
 		StorageMapShim, WithdrawReasons,
 	},
-	weights::{ConstantMultiplier, WeightMeter},
+	weights::{ConstantMultiplier, WeightMeter, WeightToFee as _},
 	PalletId,
 };
 use frame_system::EnsureRoot;
@@ -1598,18 +1598,19 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl xcm_payment_runtime_api::XcmPaymentRuntimeApi<Block, RuntimeCall> for Runtime {
-
 		fn query_acceptable_payment_assets() -> Vec<AssetId> {
-			vec![]
+			vec![AssetId::Concrete(xcm_config::TokenLocation::get())]
 		}
 
-		fn query_weight_to_asset_fee(_weight: Weight, _asset: AssetId,) -> Option<u128> {
-			None
+		fn query_weight_to_asset_fee(weight: Weight, asset: AssetId) -> Option<u128> {
+			let local_asset = AssetId::Concrete(xcm_config::TokenLocation::get());
+			if asset != local_asset { return None; }
+			Some(WeightToFee::weight_to_fee(&weight))
 		}
 
 		fn query_xcm_weight(message: Xcm<RuntimeCall>) -> Result<Weight, Xcm<RuntimeCall>> {
 			<xcm_executor::XcmExecutor<xcm_config::XcmConfig>>::prepare(message)
-			.map(|wm| wm.weight_of())
+				.map(|wm| wm.weight_of())
 		}
 	}
 
