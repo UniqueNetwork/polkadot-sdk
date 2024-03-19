@@ -41,7 +41,7 @@ use sp_runtime::{
 use sp_version::RuntimeVersion;
 use sp_weights::Weight;
 use std::collections::BTreeMap;
-use xcm::{VersionedAssetId, VersionedXcm};
+use xcm::{latest::Assets, VersionedAssetId, VersionedLocation, VersionedXcm};
 sp_api::decl_runtime_apis! {
 	/// This runtime API is only implemented for the test runtime!
 	pub trait GetLastTimestamp {
@@ -410,6 +410,10 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn query_xcm_weight(_: VersionedXcm<RuntimeCall>) -> Result<Weight, xcm_payment_runtime_api::Error> {
+			unimplemented!()
+		}
+
+		fn query_xcm_delivery_fees(_: VersionedLocation, _: VersionedXcm<()>) -> Result<Assets, xcm_payment_runtime_api::Error> {
 			unimplemented!()
 		}
 	}

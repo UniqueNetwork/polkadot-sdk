@@ -22,7 +22,7 @@ use codec::{Codec, Decode, Encode};
 use frame_support::pallet_prelude::TypeInfo;
 use sp_std::vec::Vec;
 use sp_weights::Weight;
-use xcm::{Version, VersionedAssetId, VersionedXcm};
+use xcm::{latest::Assets, Version, VersionedAssetId, VersionedLocation, VersionedXcm};
 
 sp_api::decl_runtime_apis! {
 	/// A trait of XCM payment API.
@@ -60,6 +60,14 @@ sp_api::decl_runtime_apis! {
 		/// * `weight`: convertible `Weight`.
 		/// * `asset`: `VersionedAssetId`.
 		fn query_weight_to_asset_fee(weight: Weight, asset: VersionedAssetId) -> Result<u128, Error>;
+
+		/// Returns a fee needed to deliver a XCM.
+		///
+		/// # Arguments
+		///
+		/// * `destination`: `VersionedLocation`.
+		/// * `message`: `VersionedXcm`.
+		fn query_xcm_delivery_fees(destination: VersionedLocation, message: VersionedXcm<()>) -> Result<Assets, Error>;
 	}
 }
 
@@ -79,4 +87,7 @@ pub enum Error {
 	/// The given asset is not handled(as a fee payment).
 	#[codec(index = 4)]
 	AssetNotFound,
+	/// Destination is known to be unroutable.
+	#[codec(index = 5)]
+	Unroutable,
 }
