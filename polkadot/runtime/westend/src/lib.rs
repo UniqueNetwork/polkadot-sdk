@@ -101,7 +101,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use xcm::{
-	latest::{InteriorLocation, Junction, Junction::PalletInstance},
+	latest::{Assets, InteriorLocation, Junction, Junction::PalletInstance},
 	IntoVersion, VersionedAssetId, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::PayOverXcm;
@@ -2286,6 +2286,22 @@ sp_api::impl_runtime_apis! {
 				.map_err(|_| XcmPaymentApiError::VersionedConversionFailed)?;
 			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(&mut message)
 				.map_err(|_| XcmPaymentApiError::WeightNotComputable)
+		}
+
+		fn query_xcm_delivery_fees(destination: VersionedLocation, message: VersionedXcm<()>) -> Result<Assets, XcmPaymentApiError> {
+			let destination = destination
+				.into_version(4)
+				.map_err(|_| XcmPaymentApiError::VersionedConversionFailed)?;
+			let VersionedLocation::V4(Location { parents: 0, interior: junctions}) = destination else {
+				return Err(XcmPaymentApiError::Unroutable);
+			};
+			let (Junctions::Here, Some(Junction::Parachain(para_id))) = junctions.split_first() else {
+				return Err(XcmPaymentApiError::Unroutable);
+			};
+			let message = message
+				.try_into()
+				.map_err(|_| XcmPaymentApiError::VersionedConversionFailed)?;
+			Ok(xcm_config::PriceForChildParachainDelivery::price_for_delivery(para_id.into(), &message))
 		}
 	}
 
