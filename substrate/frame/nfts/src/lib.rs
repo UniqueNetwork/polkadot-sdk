@@ -42,10 +42,13 @@ mod common_functions;
 /// features, make sure to set appropriate bitflags for [`Config::Features`] in your runtime
 /// configuration trait.
 mod features;
+mod impl_asset_instances;
+mod impl_asset_metadata;
 mod impl_nonfungibles;
 mod types;
 
 pub mod macros;
+pub mod metadata_strategy;
 pub mod weights;
 
 use codec::{Decode, Encode};
