@@ -26,8 +26,9 @@ pub mod nonfungible;
 pub mod nonfungible_v2;
 pub mod nonfungibles;
 pub mod nonfungibles_v2;
-pub mod asset_instances;
+pub mod unique_assets;
 pub mod asset_metadata;
+pub mod common_asset_strategies;
 pub use imbalance::Imbalance;
 pub mod pay;
 pub use misc::{

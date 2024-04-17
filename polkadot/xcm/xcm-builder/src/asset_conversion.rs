@@ -20,7 +20,7 @@ use frame_support::traits::{Contains, Get};
 use sp_runtime::traits::MaybeEquivalence;
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{Error as MatchError, MatchesFungibles, MatchesNonFungibles};
+use xcm_executor::traits::{Error as MatchError, MatchesFungibles, MatchesNonFungibles, MatchesNonFungible, MatchesInstance};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be
 /// `TryFrom/TryInto<u128>`) into a `GeneralIndex` junction, prefixed by some `Location` value.
@@ -131,8 +131,8 @@ impl<
 	}
 }
 impl<
-		ClassId: Clone,
-		InstanceId: Clone,
+		ClassId,
+		InstanceId,
 		MatchClassId: Contains<Location>,
 		ConvertClassId: MaybeEquivalence<Location, ClassId>,
 		ConvertInstanceId: MaybeEquivalence<AssetInstance, InstanceId>,
@@ -149,6 +149,30 @@ impl<
 		let instance =
 			ConvertInstanceId::convert(instance).ok_or(MatchError::InstanceConversionFailed)?;
 		Ok((what, instance))
+	}
+}
+
+pub struct ManyNonFungibleClasses<Matcher>(PhantomData<Matcher>);
+
+impl<
+	ClassId,
+	InstanceId,
+	Matcher: MatchesNonFungibles<ClassId, InstanceId>
+> MatchesInstance<(ClassId, InstanceId)> for ManyNonFungibleClasses<Matcher> {
+	fn matches_instance(a: &Asset) -> result::Result<(ClassId, InstanceId), MatchError> {
+		Matcher::matches_nonfungibles(a)
+	}
+}
+
+pub struct SingleNonFungibleClass<Matcher>(PhantomData<Matcher>);
+
+impl<
+	InstanceId,
+	Matcher: MatchesNonFungible<InstanceId>
+> MatchesInstance<InstanceId> for SingleNonFungibleClass<Matcher> {
+	fn matches_instance(a: &Asset) -> result::Result<InstanceId, MatchError> {
+		Matcher::matches_nonfungible(a)
+			.ok_or(MatchError::AssetNotHandled)
 	}
 }
 

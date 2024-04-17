@@ -545,3 +545,77 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 	/// A deadline for the signature.
 	pub(super) deadline: Deadline,
 }
+
+pub mod metadata_strategies {
+	use frame_support::traits::tokens::asset_metadata::MetadataStrategy;
+
+	pub struct RegularAttributes;
+	impl MetadataStrategy for RegularAttributes {
+		type InnermostStrategy = Self;
+	}
+
+	pub struct SystemAttributes;
+	impl MetadataStrategy for SystemAttributes {
+		type InnermostStrategy = Self;
+	}
+
+	pub struct CustomAttributes;
+	impl MetadataStrategy for CustomAttributes {
+		type InnermostStrategy = Self;
+	}
+}
+
+pub mod unique_assets_strategies {
+	use core::marker::PhantomData;
+
+	use super::*;
+	use frame_support::traits::tokens::unique_assets::CreateStrategy;
+
+	pub struct ConfiguredCollection<'a, T: Config<I>, I: 'static> {
+		pub owner: &'a T::AccountId,
+		pub admin: &'a T::AccountId,
+		pub config: &'a CollectionConfigFor<T, I>,
+	}
+	impl<'a, T: Config<I>, I: 'static> ConfiguredCollection<'a, T, I> {
+		pub fn from(
+			owner: &'a T::AccountId,
+			admin: &'a T::AccountId,
+			config: &'a CollectionConfigFor<T, I>,
+		) -> Self {
+			Self { owner, admin, config }
+		}
+	}
+	impl<'a, T: Config<I>, I: 'static> CreateStrategy for ConfiguredCollection<'a, T, I> {
+		type Success = T::CollectionId;
+	}
+
+	pub struct ConfiguredItem<'a, T: Config<I>, I: 'static> {
+		pub collection_id: &'a T::CollectionId,
+		pub item_id: &'a T::ItemId,
+		pub owner: &'a T::AccountId,
+		pub item_config: &'a ItemConfig,
+		pub deposit_collection_owner: bool,
+		_phantom: PhantomData<I>,
+	}
+	impl<'a, T: Config<I>, I: 'static> ConfiguredItem<'a, T, I> {
+		pub fn from(
+			collection_id: &'a T::CollectionId,
+			item_id: &'a T::ItemId,
+			owner: &'a T::AccountId,
+			item_config: &'a ItemConfig,
+			deposit_collection_owner: bool,
+		) -> Self {
+			Self {
+				collection_id,
+				item_id,
+				owner,
+				item_config,
+				deposit_collection_owner,
+				_phantom: PhantomData,
+			}
+		}
+	}
+	impl<'a, T: Config<I>, I: 'static> CreateStrategy for ConfiguredItem<'a, T, I> {
+		type Success = ();
+	}
+}

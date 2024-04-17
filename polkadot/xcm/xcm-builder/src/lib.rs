@@ -91,6 +91,8 @@ pub use matches_token::IsConcrete;
 mod matcher;
 pub use matcher::{CreateMatcher, MatchXcm, Matcher};
 
+pub mod unique_instances;
+
 mod nonfungibles_adapter;
 pub use nonfungibles_adapter::{
 	NonFungiblesAdapter, NonFungiblesMutateAdapter, NonFungiblesTransferAdapter,
