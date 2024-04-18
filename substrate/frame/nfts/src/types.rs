@@ -546,30 +546,31 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 	pub(super) deadline: Deadline,
 }
 
-pub mod metadata_strategies {
-	use frame_support::traits::tokens::asset_metadata::MetadataStrategy;
-
-	pub struct RegularAttributes;
-	impl MetadataStrategy for RegularAttributes {
-		type InnermostStrategy = Self;
-	}
-
-	pub struct SystemAttributes;
-	impl MetadataStrategy for SystemAttributes {
-		type InnermostStrategy = Self;
-	}
-
-	pub struct CustomAttributes;
-	impl MetadataStrategy for CustomAttributes {
-		type InnermostStrategy = Self;
-	}
-}
-
-pub mod unique_assets_strategies {
+pub mod asset_strategies {
 	use core::marker::PhantomData;
 
 	use super::*;
-	use frame_support::traits::tokens::unique_assets::CreateStrategy;
+	use frame_support::traits::asset_ops::{CreateStrategy, MetadataStrategy};
+
+	pub struct RegularAttribute;
+	impl MetadataStrategy for RegularAttribute {
+		type InnermostStrategy = Self;
+	}
+
+	pub struct SystemAttribute;
+	impl MetadataStrategy for SystemAttribute {
+		type InnermostStrategy = Self;
+	}
+
+	pub struct CustomAttribute;
+	impl MetadataStrategy for CustomAttribute {
+		type InnermostStrategy = Self;
+	}
+
+	pub struct HasRole(pub CollectionRole);
+	impl MetadataStrategy for HasRole {
+		type InnermostStrategy = Self;
+	}
 
 	pub struct ConfiguredCollection<'a, T: Config<I>, I: 'static> {
 		pub owner: &'a T::AccountId,

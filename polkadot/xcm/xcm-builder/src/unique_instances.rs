@@ -1,9 +1,9 @@
 use core::marker::PhantomData;
 use frame_support::traits::{
-    tokens::unique_assets::{
+    asset_ops::{
         Create, Transfer, Destroy,
         common_asset_kinds::{Instance, Class},
-        common_strategies::{NewOwnedAssetWithId, NewOwnedChildAsset, FromTo, IfOwnedBy}, Identification
+        common_strategies::{NewOwnedAssetWithId, NewOwnedChildAsset, FromTo, IfOwnedBy}, AssetDefinition
     },
     Get,
 };
@@ -190,7 +190,7 @@ impl<
     AccountId,
     AccountIdConverter: ConvertLocation<AccountId>,
     Matcher: MatchesInstance<DerivativeStatus<DerivativeClassOps::Id, InstanceTransfer::Id>>,
-    DerivativeClassOps: Identification<Class>
+    DerivativeClassOps: AssetDefinition<Class>
         + for<'a> Create<NewOwnedChildAsset<'a, Instance, DerivativeClassOps::Id, InstanceTransfer::Id, AccountId>>,
         InstanceTransfer: for<'a> Transfer<Instance, FromTo<'a, AccountId>>,
     StashLocation: Get<Location>,
