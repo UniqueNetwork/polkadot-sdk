@@ -5,8 +5,8 @@ use frame_support::{
 	traits::{
 		asset_ops::{
 			common_asset_kinds::Class,
-			common_strategies::{CheckOrigin, Ownership, Primary},
-			AssetDefinition, Create, InspectMetadata, MetadataDefinition, UpdateMetadata,
+			common_strategies::{Bytes, CheckOrigin, Ownership},
+			AssetDefinition, Create, InspectMetadata, UpdateMetadata,
 		},
 		EnsureOrigin,
 	},
@@ -14,35 +14,10 @@ use frame_support::{
 };
 use frame_system::ensure_signed;
 use sp_core::Get;
-use sp_runtime::{BoundedVec, DispatchError};
+use sp_runtime::DispatchError;
 
 impl<T: Config<I>, I: 'static> AssetDefinition<Class> for Pallet<T, I> {
 	type Id = T::CollectionId;
-}
-
-impl<T: Config<I>, I: 'static> MetadataDefinition<Class, Ownership> for Pallet<T, I> {
-	type Key<'k> = &'k T::CollectionId;
-	type Value = T::AccountId;
-}
-
-impl<T: Config<I>, I: 'static> MetadataDefinition<Class, Primary> for Pallet<T, I> {
-	type Key<'k> = &'k T::CollectionId;
-	type Value = BoundedVec<u8, T::StringLimit>;
-}
-
-impl<T: Config<I>, I: 'static> MetadataDefinition<Class, RegularAttribute> for Pallet<T, I> {
-	type Key<'k> = (&'k T::CollectionId, &'k [u8]);
-	type Value = BoundedVec<u8, T::ValueLimit>;
-}
-
-impl<T: Config<I>, I: 'static> MetadataDefinition<Class, SystemAttribute> for Pallet<T, I> {
-	type Key<'k> = (&'k T::CollectionId, &'k [u8]);
-	type Value = BoundedVec<u8, T::ValueLimit>;
-}
-
-impl<T: Config<I>, I: 'static> MetadataDefinition<Class, HasRole> for Pallet<T, I> {
-	type Key<'k> = (&'k T::CollectionId, &'k T::AccountId);
-	type Value = bool;
 }
 
 impl<'a, T: Config<I>, I: 'static> Create<ConfiguredCollection<'a, T, I>> for Pallet<T, I> {
@@ -112,71 +87,77 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, Ownership> for Pallet<T, I> {
-	fn asset_metadata(
-		_ownership: Ownership,
-		collection: Self::Key<'_>,
-	) -> Result<Self::Value, DispatchError> {
+impl<T: Config<I>, I: 'static> InspectMetadata<Class, Ownership<T::AccountId>> for Pallet<T, I> {
+	fn inspect_metadata(
+		collection: &Self::Id,
+		_ownership: Ownership<T::AccountId>,
+	) -> Result<T::AccountId, DispatchError> {
 		Collection::<T, I>::get(collection)
 			.map(|a| a.owner)
 			.ok_or(Error::<T, I>::UnknownCollection.into())
 	}
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, Primary> for Pallet<T, I> {
-	fn asset_metadata(
-		_primary: Primary,
-		collection: Self::Key<'_>,
-	) -> Result<Self::Value, DispatchError> {
+impl<T: Config<I>, I: 'static> InspectMetadata<Class, Bytes> for Pallet<T, I> {
+	fn inspect_metadata(collection: &Self::Id, _bytes: Bytes) -> Result<Vec<u8>, DispatchError> {
 		CollectionMetadataOf::<T, I>::get(collection)
-			.map(|collection_metadata| collection_metadata.data)
+			.map(|collection_metadata| collection_metadata.data.into())
 			.ok_or(Error::<T, I>::MetadataNotFound.into())
 	}
 }
 
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, Primary> for Pallet<T, I> {
-	fn update_asset_metadata(
-		_primary: Primary,
-		collection: Self::Key<'_>,
-		update: Option<&Self::Value>,
+impl<T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes> for Pallet<T, I> {
+	fn update_metadata(
+		collection: &Self::Id,
+		_bytes: Bytes,
+		update: Option<&[u8]>,
 	) -> DispatchResult {
 		let maybe_check_origin = None;
 
 		match update {
-			Some(data) =>
-				Self::do_set_collection_metadata(maybe_check_origin, *collection, data.clone()),
+			Some(data) => Self::do_set_collection_metadata(
+				maybe_check_origin,
+				*collection,
+				Self::construct_metadata(data.to_vec())?,
+			),
 			None => Self::do_clear_collection_metadata(maybe_check_origin, *collection),
 		}
 	}
 }
 
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Primary>>
+impl<T: Config<I>, I: 'static> UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Bytes>>
 	for Pallet<T, I>
 {
-	fn update_asset_metadata(
-		strategy: CheckOrigin<T::RuntimeOrigin, Primary>,
-		collection: Self::Key<'_>,
-		update: Option<&Self::Value>,
+	fn update_metadata(
+		collection: &Self::Id,
+		strategy: CheckOrigin<T::RuntimeOrigin, Bytes>,
+		update: Option<&[u8]>,
 	) -> DispatchResult {
-		let CheckOrigin(origin, _primary) = strategy;
+		let CheckOrigin(origin, _bytes) = strategy;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
 			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
 
 		match update {
-			Some(data) =>
-				Self::do_set_collection_metadata(maybe_check_origin, *collection, data.clone()),
+			Some(data) => Self::do_set_collection_metadata(
+				maybe_check_origin,
+				*collection,
+				Self::construct_metadata(data.to_vec())?,
+			),
 			None => Self::do_clear_collection_metadata(maybe_check_origin, *collection),
 		}
 	}
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, RegularAttribute> for Pallet<T, I> {
-	fn asset_metadata(
-		_regular_attribute: RegularAttribute,
-		(collection, attribute): Self::Key<'_>,
-	) -> Result<Self::Value, DispatchError> {
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute<'a>>>
+	for Pallet<T, I>
+{
+	fn inspect_metadata(
+		collection: &Self::Id,
+		bytes: Bytes<RegularAttribute>,
+	) -> Result<Vec<u8>, DispatchError> {
+		let Bytes(RegularAttribute(attribute)) = bytes;
 		let attribute =
 			BoundedSlice::try_from(attribute).map_err(|_| Error::<T, I>::IncorrectData)?;
 
@@ -186,32 +167,40 @@ impl<T: Config<I>, I: 'static> InspectMetadata<Class, RegularAttribute> for Pall
 			AttributeNamespace::CollectionOwner,
 			attribute,
 		))
-		.map(|a| a.0)
+		.map(|a| a.0.into())
 		.ok_or(Error::<T, I>::AttributeNotFound.into())
 	}
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, SystemAttribute> for Pallet<T, I> {
-	fn asset_metadata(
-		_system_attribute: SystemAttribute,
-		(collection, attribute): Self::Key<'_>,
-	) -> Result<Self::Value, DispatchError> {
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<SystemAttribute<'a>>>
+	for Pallet<T, I>
+{
+	fn inspect_metadata(
+		collection: &Self::Id,
+		bytes: Bytes<SystemAttribute>,
+	) -> Result<Vec<u8>, DispatchError> {
 		let item: Option<T::ItemId> = None;
 		let namespace = AttributeNamespace::Pallet;
+
+		let Bytes(SystemAttribute(attribute)) = bytes;
 		let attribute =
 			BoundedSlice::<_, _>::try_from(attribute).map_err(|_| Error::<T, I>::IncorrectData)?;
 
 		Attribute::<T, I>::get((collection, item, namespace, attribute))
-			.map(|a| a.0)
+			.map(|a| a.0.into())
 			.ok_or(Error::<T, I>::AttributeNotFound.into())
 	}
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, HasRole> for Pallet<T, I> {
-	fn asset_metadata(
-		HasRole(role): HasRole,
-		(collection, who): Self::Key<'_>,
-	) -> Result<Self::Value, DispatchError> {
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::AccountId>>
+	for Pallet<T, I>
+{
+	fn inspect_metadata(
+		collection: &Self::Id,
+		has_role: HasRole<T::AccountId>,
+	) -> Result<bool, DispatchError> {
+		let HasRole { who, role } = has_role;
+
 		Ok(Self::has_role(collection, who, role))
 	}
 }

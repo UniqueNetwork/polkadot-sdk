@@ -550,26 +550,25 @@ pub mod asset_strategies {
 	use core::marker::PhantomData;
 
 	use super::*;
-	use frame_support::traits::asset_ops::{CreateStrategy, MetadataStrategy};
+	use frame_support::traits::asset_ops::{
+		CreateStrategy, MetadataInspectStrategy, MetadataUpdateStrategy,
+	};
 
-	pub struct RegularAttribute;
-	impl MetadataStrategy for RegularAttribute {
-		type InnermostStrategy = Self;
+	pub struct RegularAttribute<'a>(pub &'a [u8]);
+
+	pub struct SystemAttribute<'a>(pub &'a [u8]);
+
+	pub struct CustomAttribute<'a, AccountId>(pub &'a AccountId, pub &'a [u8]);
+
+	pub struct HasRole<'a, AccountId> {
+		pub who: &'a AccountId,
+		pub role: CollectionRole,
 	}
-
-	pub struct SystemAttribute;
-	impl MetadataStrategy for SystemAttribute {
-		type InnermostStrategy = Self;
+	impl<'a, AccountId> MetadataInspectStrategy for HasRole<'a, AccountId> {
+		type Value = bool;
 	}
-
-	pub struct CustomAttribute;
-	impl MetadataStrategy for CustomAttribute {
-		type InnermostStrategy = Self;
-	}
-
-	pub struct HasRole(pub CollectionRole);
-	impl MetadataStrategy for HasRole {
-		type InnermostStrategy = Self;
+	impl<'a, AccountId> MetadataUpdateStrategy for HasRole<'a, AccountId> {
+		type Update<'u> = bool;
 	}
 
 	pub struct ConfiguredCollection<'a, T: Config<I>, I: 'static> {

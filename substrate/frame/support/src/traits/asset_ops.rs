@@ -8,24 +8,23 @@ pub trait AssetDefinition<AssetKind> {
     type Id;
 }
 
-pub trait MetadataStrategy {
-    type InnermostStrategy: MetadataStrategy;
-}
-
-pub trait MetadataDefinition<AssetKind, Strategy: MetadataStrategy> {
-    type Key<'k>;
+pub trait MetadataInspectStrategy {
     type Value;
 }
 
-pub trait InspectMetadata<AssetKind, Strategy: MetadataStrategy>: MetadataDefinition<AssetKind, Strategy::InnermostStrategy> {
-    fn asset_metadata(strategy: Strategy, key: Self::Key<'_>) -> Result<Self::Value, DispatchError>;
+pub trait InspectMetadata<AssetKind, Strategy: MetadataInspectStrategy>: AssetDefinition<AssetKind> {
+    fn inspect_metadata(id: &Self::Id, strategy: Strategy) -> Result<Strategy::Value, DispatchError>;
 }
 
-pub trait UpdateMetadata<AssetKind, Strategy: MetadataStrategy>: MetadataDefinition<AssetKind, Strategy::InnermostStrategy> {
-    fn update_asset_metadata(
+pub trait MetadataUpdateStrategy {
+    type Update<'u>;
+}
+
+pub trait UpdateMetadata<AssetKind, Strategy: MetadataUpdateStrategy>: AssetDefinition<AssetKind> {
+    fn update_metadata(
+        id: &Self::Id,
         strategy: Strategy,
-        key: Self::Key<'_>,
-        update: Option<&Self::Value>
+        update: Strategy::Update<'_>,
     ) -> DispatchResult;
 }
 
@@ -65,8 +64,11 @@ pub mod common_strategies {
     use super::*;
 
     pub struct CheckOrigin<RuntimeOrigin, Inner>(pub RuntimeOrigin, pub Inner);
-    impl<RuntimeOrigin, Inner: MetadataStrategy> MetadataStrategy for CheckOrigin<RuntimeOrigin, Inner> {
-        type InnermostStrategy = Inner::InnermostStrategy;
+    impl<RuntimeOrigin, Inner: MetadataInspectStrategy> MetadataInspectStrategy for CheckOrigin<RuntimeOrigin, Inner> {
+        type Value = Inner::Value;
+    }
+    impl<RuntimeOrigin, Inner: MetadataUpdateStrategy> MetadataUpdateStrategy for CheckOrigin<RuntimeOrigin, Inner> {
+        type Update<'u> = Inner::Update<'u>;
     }
     impl<RuntimeOrigin, Inner: CreateStrategy> CreateStrategy for CheckOrigin<RuntimeOrigin, Inner> {
         type Success = Inner::Success;
@@ -74,47 +76,64 @@ pub mod common_strategies {
     impl<RuntimeOrigin, Inner: TransferStrategy> TransferStrategy for CheckOrigin<RuntimeOrigin, Inner> {}
     impl<RuntimeOrigin, Inner: DestroyStrategy> DestroyStrategy for CheckOrigin<RuntimeOrigin, Inner> {}
 
-    pub struct Primary;
-    impl MetadataStrategy for Primary {
-        type InnermostStrategy = Self;
+    pub struct Bytes<Flavor = ()>(pub Flavor);
+    impl Bytes<()> {
+        pub fn new() -> Self {
+            Self(())
+        }
+    }
+    impl<Flavor> Bytes<Flavor> {
+        pub fn from(flavor: Flavor) -> Self {
+            Self(flavor)
+        }
+    }
+    impl<Flavor> MetadataInspectStrategy for Bytes<Flavor> {
+        type Value = Vec<u8>;
+    }
+    impl<Flavor> MetadataUpdateStrategy for Bytes<Flavor> {
+        type Update<'u> = Option<&'u [u8]>;
     }
 
-    pub struct Ownership;
-    impl MetadataStrategy for Ownership {
-        type InnermostStrategy = Self;
+    pub struct Ownership<AccountId>(PhantomData<AccountId>);
+    impl<AccountId> Ownership<AccountId> {
+        pub fn new() -> Self {
+            Self(PhantomData)
+        }
+    }
+    impl<AccountId> MetadataInspectStrategy for Ownership<AccountId> {
+        type Value = AccountId;
     }
 
     pub struct CanCreate;
-    impl MetadataStrategy for CanCreate {
-        type InnermostStrategy = Self;
+    impl MetadataInspectStrategy for CanCreate {
+        type Value = bool;
+    }
+    impl MetadataUpdateStrategy for CanCreate {
+        type Update<'u> = bool;
     }
 
     pub struct CanTransfer;
-    impl MetadataStrategy for CanTransfer {
-        type InnermostStrategy = Self;
+    impl MetadataInspectStrategy for CanTransfer {
+        type Value = bool;
+    }
+    impl MetadataUpdateStrategy for CanTransfer {
+        type Update<'u> = bool;
     }
 
     pub struct CanDestroy;
-    impl MetadataStrategy for CanDestroy {
-        type InnermostStrategy = Self;
+    impl MetadataInspectStrategy for CanDestroy {
+        type Value = bool;
+    }
+    impl MetadataUpdateStrategy for CanDestroy {
+        type Update<'u> = bool;
     }
 
     pub struct CanUpdateMetadata;
-    impl MetadataStrategy for CanUpdateMetadata {
-        type InnermostStrategy = Self;
+    impl MetadataInspectStrategy for CanUpdateMetadata {
+        type Value = bool;
     }
-
-    pub enum Ability {
-        Set,
-        Reset,
-    }
-    impl<'a> From<Ability> for Option<&'a ()> {
-        fn from(ability: Ability) -> Self {
-            match ability {
-                Ability::Set => Some(& ()),
-                Ability::Reset => None,
-            }
-        }
+    impl MetadataUpdateStrategy for CanUpdateMetadata {
+        type Update<'u> = bool;
     }
 
     pub struct NewOwnedAsset<'a, AssetKind, Id, Owner>(pub &'a Owner, PhantomData<(AssetKind, Id)>);
