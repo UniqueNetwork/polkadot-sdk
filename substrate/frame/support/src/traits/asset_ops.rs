@@ -94,14 +94,14 @@ pub mod common_strategies {
         type Update<'u> = Option<&'u [u8]>;
     }
 
-    pub struct Ownership<AccountId>(PhantomData<AccountId>);
-    impl<AccountId> Ownership<AccountId> {
+    pub struct Ownership<Owner>(PhantomData<Owner>);
+    impl<Owner> Ownership<Owner> {
         pub fn new() -> Self {
             Self(PhantomData)
         }
     }
-    impl<AccountId> MetadataInspectStrategy for Ownership<AccountId> {
-        type Value = AccountId;
+    impl<Owner> MetadataInspectStrategy for Ownership<Owner> {
+        type Value = Owner;
     }
 
     pub struct CanCreate;

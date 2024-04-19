@@ -20,6 +20,166 @@ impl<T: Config<I>, I: 'static> AssetDefinition<Class> for Pallet<T, I> {
 	type Id = T::CollectionId;
 }
 
+impl<T: Config<I>, I: 'static> InspectMetadata<Class, Ownership<T::AccountId>> for Pallet<T, I> {
+	fn inspect_metadata(
+		collection: &Self::Id,
+		_ownership: Ownership<T::AccountId>,
+	) -> Result<T::AccountId, DispatchError> {
+		Collection::<T, I>::get(collection)
+			.map(|a| a.owner)
+			.ok_or(Error::<T, I>::UnknownCollection.into())
+	}
+}
+
+impl<T: Config<I>, I: 'static> InspectMetadata<Class, Bytes> for Pallet<T, I> {
+	fn inspect_metadata(collection: &Self::Id, _bytes: Bytes) -> Result<Vec<u8>, DispatchError> {
+		CollectionMetadataOf::<T, I>::get(collection)
+			.map(|collection_metadata| collection_metadata.data.into())
+			.ok_or(Error::<T, I>::MetadataNotFound.into())
+	}
+}
+
+impl<T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes> for Pallet<T, I> {
+	fn update_metadata(
+		collection: &Self::Id,
+		_bytes: Bytes,
+		update: Option<&[u8]>,
+	) -> DispatchResult {
+		Self::do_update_collection_metadata(
+			None,
+			*collection,
+			update.map(|data| Self::construct_metadata(data.to_vec())).transpose()?,
+		)
+	}
+}
+
+impl<T: Config<I>, I: 'static> UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Bytes>>
+	for Pallet<T, I>
+{
+	fn update_metadata(
+		collection: &Self::Id,
+		strategy: CheckOrigin<T::RuntimeOrigin, Bytes>,
+		update: Option<&[u8]>,
+	) -> DispatchResult {
+		let CheckOrigin(origin, _bytes) = strategy;
+
+		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
+			.map(|_| None)
+			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
+
+		Self::do_update_collection_metadata(
+			maybe_check_origin,
+			*collection,
+			update.map(|data| Self::construct_metadata(data.to_vec())).transpose()?,
+		)
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute<'a>>>
+	for Pallet<T, I>
+{
+	fn inspect_metadata(
+		collection: &Self::Id,
+		bytes: Bytes<RegularAttribute>,
+	) -> Result<Vec<u8>, DispatchError> {
+		let item = None::<T::ItemId>;
+		let Bytes(RegularAttribute(attribute)) = bytes;
+
+		Attribute::<T, I>::get((
+			collection,
+			item,
+			AttributeNamespace::CollectionOwner,
+			Self::construct_attribute_key(attribute.to_vec())?,
+		))
+		.map(|a| a.0.into())
+		.ok_or(Error::<T, I>::AttributeNotFound.into())
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static>
+	UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>> for Pallet<T, I>
+{
+	fn update_metadata(
+		collection: &Self::Id,
+		bytes: CheckOrigin<T::RuntimeOrigin, Bytes<RegularAttribute>>,
+		update: Option<&[u8]>,
+	) -> DispatchResult {
+		let maybe_item = None::<T::ItemId>;
+		let namespace = AttributeNamespace::CollectionOwner;
+
+		let CheckOrigin(origin, Bytes(RegularAttribute(attribute))) = bytes;
+		let attribute = Self::construct_attribute_key(attribute.to_vec())?;
+		let update =
+			update.map(|data| Self::construct_attribute_value(data.to_vec())).transpose()?;
+
+		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
+			.map(|_| None)
+			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
+
+		Self::do_update_attribute(
+			maybe_check_origin,
+			*collection,
+			maybe_item,
+			namespace,
+			attribute,
+			update,
+		)
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<SystemAttribute<'a>>>
+	for Pallet<T, I>
+{
+	fn inspect_metadata(
+		collection: &Self::Id,
+		bytes: Bytes<SystemAttribute>,
+	) -> Result<Vec<u8>, DispatchError> {
+		let item: Option<T::ItemId> = None;
+		let namespace = AttributeNamespace::Pallet;
+
+		let Bytes(SystemAttribute(attribute)) = bytes;
+		let attribute =
+			BoundedSlice::<_, _>::try_from(attribute).map_err(|_| Error::<T, I>::IncorrectData)?;
+
+		Attribute::<T, I>::get((collection, item, namespace, attribute))
+			.map(|a| a.0.into())
+			.ok_or(Error::<T, I>::AttributeNotFound.into())
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes<SystemAttribute<'a>>>
+	for Pallet<T, I>
+{
+	fn update_metadata(
+		collection: &Self::Id,
+		bytes: Bytes<SystemAttribute>,
+		update: Option<&[u8]>,
+	) -> DispatchResult {
+		let maybe_item = None;
+		let namespace = AttributeNamespace::Pallet;
+
+		let Bytes(SystemAttribute(attribute)) = bytes;
+		let attribute = Self::construct_attribute_key(attribute.to_vec())?;
+		let update =
+			update.map(|data| Self::construct_attribute_value(data.to_vec())).transpose()?;
+
+		Self::do_update_attribute(None, *collection, maybe_item, namespace, attribute, update)
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::AccountId>>
+	for Pallet<T, I>
+{
+	fn inspect_metadata(
+		collection: &Self::Id,
+		has_role: HasRole<T::AccountId>,
+	) -> Result<bool, DispatchError> {
+		let HasRole { who, role } = has_role;
+
+		Ok(Self::has_role(collection, who, role))
+	}
+}
+
 impl<'a, T: Config<I>, I: 'static> Create<ConfiguredCollection<'a, T, I>> for Pallet<T, I> {
 	fn create(strategy: ConfiguredCollection<'a, T, I>) -> Result<T::CollectionId, DispatchError> {
 		let ConfiguredCollection { owner, admin, config } = strategy;
@@ -84,123 +244,5 @@ impl<'a, T: Config<I>, I: 'static>
 		Self::set_next_collection_id(collection);
 
 		Ok(collection)
-	}
-}
-
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, Ownership<T::AccountId>> for Pallet<T, I> {
-	fn inspect_metadata(
-		collection: &Self::Id,
-		_ownership: Ownership<T::AccountId>,
-	) -> Result<T::AccountId, DispatchError> {
-		Collection::<T, I>::get(collection)
-			.map(|a| a.owner)
-			.ok_or(Error::<T, I>::UnknownCollection.into())
-	}
-}
-
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, Bytes> for Pallet<T, I> {
-	fn inspect_metadata(collection: &Self::Id, _bytes: Bytes) -> Result<Vec<u8>, DispatchError> {
-		CollectionMetadataOf::<T, I>::get(collection)
-			.map(|collection_metadata| collection_metadata.data.into())
-			.ok_or(Error::<T, I>::MetadataNotFound.into())
-	}
-}
-
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes> for Pallet<T, I> {
-	fn update_metadata(
-		collection: &Self::Id,
-		_bytes: Bytes,
-		update: Option<&[u8]>,
-	) -> DispatchResult {
-		let maybe_check_origin = None;
-
-		match update {
-			Some(data) => Self::do_set_collection_metadata(
-				maybe_check_origin,
-				*collection,
-				Self::construct_metadata(data.to_vec())?,
-			),
-			None => Self::do_clear_collection_metadata(maybe_check_origin, *collection),
-		}
-	}
-}
-
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Bytes>>
-	for Pallet<T, I>
-{
-	fn update_metadata(
-		collection: &Self::Id,
-		strategy: CheckOrigin<T::RuntimeOrigin, Bytes>,
-		update: Option<&[u8]>,
-	) -> DispatchResult {
-		let CheckOrigin(origin, _bytes) = strategy;
-
-		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
-			.map(|_| None)
-			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
-
-		match update {
-			Some(data) => Self::do_set_collection_metadata(
-				maybe_check_origin,
-				*collection,
-				Self::construct_metadata(data.to_vec())?,
-			),
-			None => Self::do_clear_collection_metadata(maybe_check_origin, *collection),
-		}
-	}
-}
-
-impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute<'a>>>
-	for Pallet<T, I>
-{
-	fn inspect_metadata(
-		collection: &Self::Id,
-		bytes: Bytes<RegularAttribute>,
-	) -> Result<Vec<u8>, DispatchError> {
-		let Bytes(RegularAttribute(attribute)) = bytes;
-		let attribute =
-			BoundedSlice::try_from(attribute).map_err(|_| Error::<T, I>::IncorrectData)?;
-
-		Attribute::<T, I>::get((
-			collection,
-			Option::<T::ItemId>::None,
-			AttributeNamespace::CollectionOwner,
-			attribute,
-		))
-		.map(|a| a.0.into())
-		.ok_or(Error::<T, I>::AttributeNotFound.into())
-	}
-}
-
-impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<SystemAttribute<'a>>>
-	for Pallet<T, I>
-{
-	fn inspect_metadata(
-		collection: &Self::Id,
-		bytes: Bytes<SystemAttribute>,
-	) -> Result<Vec<u8>, DispatchError> {
-		let item: Option<T::ItemId> = None;
-		let namespace = AttributeNamespace::Pallet;
-
-		let Bytes(SystemAttribute(attribute)) = bytes;
-		let attribute =
-			BoundedSlice::<_, _>::try_from(attribute).map_err(|_| Error::<T, I>::IncorrectData)?;
-
-		Attribute::<T, I>::get((collection, item, namespace, attribute))
-			.map(|a| a.0.into())
-			.ok_or(Error::<T, I>::AttributeNotFound.into())
-	}
-}
-
-impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::AccountId>>
-	for Pallet<T, I>
-{
-	fn inspect_metadata(
-		collection: &Self::Id,
-		has_role: HasRole<T::AccountId>,
-	) -> Result<bool, DispatchError> {
-		let HasRole { who, role } = has_role;
-
-		Ok(Self::has_role(collection, who, role))
 	}
 }
