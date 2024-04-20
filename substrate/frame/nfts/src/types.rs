@@ -549,8 +549,7 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 pub mod asset_strategies {
 	use super::*;
 	use frame_support::traits::asset_ops::{
-		common_asset_kinds::Class, common_strategies::*, MetadataInspectStrategy,
-		MetadataUpdateStrategy,
+		common_strategies::*, MetadataInspectStrategy, MetadataUpdateStrategy,
 	};
 
 	pub struct RegularAttribute<'a>(pub &'a [u8]);
@@ -577,11 +576,11 @@ pub mod asset_strategies {
 	>;
 
 	pub type DefaultInstanceCreation<'a, AccountId, CollectionId, ItemId> =
-		WithOwner<'a, AccountId, SecondaryTo<'a, Class, CollectionId, WithKnownId<'a, ItemId>>>;
+		WithOwner<'a, AccountId, WithKnownId<'a, (CollectionId, ItemId)>>;
 
 	pub type InstanceCreation<'a, AccountId, ItemConfig, CollectionId, ItemId> = WithOwner<
 		'a,
 		AccountId,
-		WithConfig<'a, ItemConfig, SecondaryTo<'a, Class, CollectionId, WithKnownId<'a, ItemId>>>,
+		WithConfig<'a, ItemConfig, WithKnownId<'a, (CollectionId, ItemId)>>,
 	>;
 }

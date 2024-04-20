@@ -8,6 +8,10 @@ pub trait AssetDefinition<AssetKind> {
 	type Id;
 }
 
+pub trait SecondaryAsset<PrimaryAssetKind, AssetKind>: AssetDefinition<AssetKind> {
+	type PrimaryAsset: AssetDefinition<PrimaryAssetKind>;
+}
+
 pub trait MetadataInspectStrategy {
 	type Value;
 }
@@ -78,21 +82,13 @@ pub mod common_strategies {
 	impl<RuntimeOrigin, Inner: CreateStrategy> CreateStrategy for WithOrigin<RuntimeOrigin, Inner> {
 		type Success = Inner::Success;
 	}
-	impl<RuntimeOrigin, Inner: TransferStrategy> TransferStrategy
-		for WithOrigin<RuntimeOrigin, Inner>
-	{
-	}
+	impl<RuntimeOrigin, Inner: TransferStrategy> TransferStrategy for WithOrigin<RuntimeOrigin, Inner> {}
 	impl<RuntimeOrigin, Inner: DestroyStrategy> DestroyStrategy for WithOrigin<RuntimeOrigin, Inner> {}
 
 	pub struct Bytes<Flavor = ()>(pub Flavor);
 	impl Bytes<()> {
 		pub fn new() -> Self {
 			Self(())
-		}
-	}
-	impl<Flavor> Bytes<Flavor> {
-		pub fn from(flavor: Flavor) -> Self {
-			Self(flavor)
 		}
 	}
 	impl<Flavor> MetadataInspectStrategy for Bytes<Flavor> {
@@ -159,19 +155,40 @@ pub mod common_strategies {
 		type Success = ();
 	}
 
-	pub struct WithOwner<'a, Owner, Inner: CreateStrategy>(pub &'a Owner, pub Inner);
-	impl<'a, Owner, Inner: CreateStrategy> CreateStrategy for WithOwner<'a, Owner, Inner> {
-		type Success = Inner::Success;
+	pub struct SecondaryTo<
+		'a,
+		PrimaryAssetKind,
+		AssetKind,
+		Secondary: SecondaryAsset<PrimaryAssetKind, AssetKind>,
+	>(
+		pub &'a <Secondary::PrimaryAsset as AssetDefinition<PrimaryAssetKind>>::Id,
+		PhantomData<(PrimaryAssetKind, AssetKind)>,
+	);
+	impl<
+			'a,
+			PrimaryAssetKind,
+			AssetKind,
+			Secondary: SecondaryAsset<PrimaryAssetKind, AssetKind>,
+		> SecondaryTo<'a, PrimaryAssetKind, AssetKind, Secondary>
+	{
+		pub fn from_primary_id(
+			primary_id: &'a <Secondary::PrimaryAsset as AssetDefinition<PrimaryAssetKind>>::Id,
+		) -> Self {
+			Self(primary_id, PhantomData)
+		}
+	}
+	impl<
+			'a,
+			PrimaryAssetKind,
+			AssetKind,
+			Secondary: SecondaryAsset<PrimaryAssetKind, AssetKind>,
+		> CreateStrategy for SecondaryTo<'a, PrimaryAssetKind, AssetKind, Secondary>
+	{
+		type Success = Secondary::Id;
 	}
 
-	pub struct SecondaryTo<'a, PrimaryAssetKind, PrimaryId, Inner: CreateStrategy>(
-		pub PrimaryAssetKind,
-		pub &'a PrimaryId,
-		pub Inner,
-	);
-	impl<'a, PrimaryAssetKind, PrimaryId, Inner: CreateStrategy> CreateStrategy
-		for SecondaryTo<'a, PrimaryAssetKind, PrimaryId, Inner>
-	{
+	pub struct WithOwner<'a, Owner, Inner: CreateStrategy>(pub &'a Owner, pub Inner);
+	impl<'a, Owner, Inner: CreateStrategy> CreateStrategy for WithOwner<'a, Owner, Inner> {
 		type Success = Inner::Success;
 	}
 

@@ -3,11 +3,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
-		asset_ops::{
-			common_asset_kinds::{Class, Instance},
-			common_strategies::*,
-			*,
-		},
+		asset_ops::{common_asset_kinds::Instance, common_strategies::*, *},
 		EnsureOrigin,
 	},
 };
@@ -329,7 +325,7 @@ impl<'a, T: Config<I>, I: 'static>
 	fn create(
 		strategy: DefaultInstanceCreation<'a, T::AccountId, T::CollectionId, T::ItemId>,
 	) -> DispatchResult {
-		let WithOwner(mint_to, SecondaryTo(Class, collection, WithKnownId(item))) = strategy;
+		let WithOwner(mint_to, WithKnownId((collection, item))) = strategy;
 
 		let item_config = ItemConfig { settings: Self::get_default_item_settings(collection)? };
 
@@ -344,10 +340,7 @@ impl<'a, T: Config<I>, I: 'static>
 	fn create(
 		strategy: InstanceCreation<'a, T::AccountId, ItemConfig, T::CollectionId, T::ItemId>,
 	) -> DispatchResult {
-		let WithOwner(
-			mint_to,
-			WithConfig(item_config, SecondaryTo(Class, collection, WithKnownId(item))),
-		) = strategy;
+		let WithOwner(mint_to, WithConfig(item_config, WithKnownId((collection, item)))) = strategy;
 
 		Self::do_mint(*collection, *item, None, mint_to.clone(), *item_config, |_, _| Ok(()))
 	}
