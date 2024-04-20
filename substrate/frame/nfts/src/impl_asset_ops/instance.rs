@@ -3,7 +3,11 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
-		asset_ops::{common_asset_kinds::Instance, common_strategies::*, *},
+		asset_ops::{
+			common_asset_kinds::{Class, Instance},
+			common_strategies::*,
+			*,
+		},
 		EnsureOrigin,
 	},
 };
@@ -51,15 +55,15 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, Bytes> for Pallet<T, I> 
 	}
 }
 
-impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CheckOrigin<T::RuntimeOrigin, Bytes>>
+impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, WithOrigin<T::RuntimeOrigin, Bytes>>
 	for Pallet<T, I>
 {
 	fn update_metadata(
 		(collection, item): &Self::Id,
-		strategy: CheckOrigin<T::RuntimeOrigin, Bytes>,
+		strategy: WithOrigin<T::RuntimeOrigin, Bytes>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
-		let CheckOrigin(origin, _bytes) = strategy;
+		let WithOrigin(origin, _bytes) = strategy;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
@@ -117,17 +121,17 @@ impl<'a, T: Config<I>, I: 'static> UpdateMetadata<Instance, Bytes<RegularAttribu
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	UpdateMetadata<Instance, CheckOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>>
+	UpdateMetadata<Instance, WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>>
 	for Pallet<T, I>
 {
 	fn update_metadata(
 		(collection, item): &Self::Id,
-		strategy: CheckOrigin<T::RuntimeOrigin, Bytes<RegularAttribute>>,
+		strategy: WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute>>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
 		let namespace = AttributeNamespace::CollectionOwner;
 
-		let CheckOrigin(origin, Bytes(RegularAttribute(attribute))) = strategy;
+		let WithOrigin(origin, Bytes(RegularAttribute(attribute))) = strategy;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
@@ -194,17 +198,15 @@ impl<'a, T: Config<I>, I: 'static>
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	UpdateMetadata<
-		Instance,
-		CheckOrigin<T::RuntimeOrigin, Bytes<CustomAttribute<'a, T::AccountId>>>,
-	> for Pallet<T, I>
+	UpdateMetadata<Instance, WithOrigin<T::RuntimeOrigin, Bytes<CustomAttribute<'a, T::AccountId>>>>
+	for Pallet<T, I>
 {
 	fn update_metadata(
 		(collection, item): &Self::Id,
-		strategy: CheckOrigin<T::RuntimeOrigin, Bytes<CustomAttribute<'a, T::AccountId>>>,
+		strategy: WithOrigin<T::RuntimeOrigin, Bytes<CustomAttribute<'a, T::AccountId>>>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
-		let CheckOrigin(origin, Bytes(CustomAttribute(account, attribute))) = strategy;
+		let WithOrigin(origin, Bytes(CustomAttribute(account, attribute))) = strategy;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
@@ -321,19 +323,33 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	Create<NewOwnedChildAssetWithId<'a, Instance, T::CollectionId, T::ItemId, T::AccountId>>
+	Create<Instance, DefaultInstanceCreation<'a, T::AccountId, T::CollectionId, T::ItemId>>
 	for Pallet<T, I>
 {
 	fn create(
-		strategy: NewOwnedChildAssetWithId<'a, Instance, T::CollectionId, T::ItemId, T::AccountId>,
+		strategy: DefaultInstanceCreation<'a, T::AccountId, T::CollectionId, T::ItemId>,
 	) -> DispatchResult {
-		let NewOwnedChildAssetWithId {
-			parent_asset_id: collection, id: item, owner: mint_to, ..
-		} = strategy;
+		let WithOwner(mint_to, SecondaryTo(Class, collection, WithKnownId(item))) = strategy;
 
 		let item_config = ItemConfig { settings: Self::get_default_item_settings(collection)? };
 
 		Self::do_mint(*collection, *item, None, mint_to.clone(), item_config, |_, _| Ok(()))
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static>
+	Create<Instance, InstanceCreation<'a, T::AccountId, ItemConfig, T::CollectionId, T::ItemId>>
+	for Pallet<T, I>
+{
+	fn create(
+		strategy: InstanceCreation<'a, T::AccountId, ItemConfig, T::CollectionId, T::ItemId>,
+	) -> DispatchResult {
+		let WithOwner(
+			mint_to,
+			WithConfig(item_config, SecondaryTo(Class, collection, WithKnownId(item))),
+		) = strategy;
+
+		Self::do_mint(*collection, *item, None, mint_to.clone(), *item_config, |_, _| Ok(()))
 	}
 }
 
@@ -385,14 +401,14 @@ impl<'a, T: Config<I>, I: 'static> Destroy<Instance, IfOwnedBy<'a, T::AccountId>
 	}
 }
 
-impl<T: Config<I>, I: 'static> Destroy<Instance, CheckOrigin<T::RuntimeOrigin, ForceDestroy>>
+impl<T: Config<I>, I: 'static> Destroy<Instance, WithOrigin<T::RuntimeOrigin, ForceDestroy>>
 	for Pallet<T, I>
 {
 	fn destroy(
 		(collection, item): &Self::Id,
-		strategy: CheckOrigin<T::RuntimeOrigin, ForceDestroy>,
+		strategy: WithOrigin<T::RuntimeOrigin, ForceDestroy>,
 	) -> DispatchResult {
-		let CheckOrigin(origin, _force_destroy) = strategy;
+		let WithOrigin(origin, _force_destroy) = strategy;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)

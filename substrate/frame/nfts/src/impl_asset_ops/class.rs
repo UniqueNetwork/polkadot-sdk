@@ -4,9 +4,8 @@ use frame_support::{
 	ensure,
 	traits::{
 		asset_ops::{
-			common_asset_kinds::Class,
-			common_strategies::{Bytes, CheckOrigin, Ownership},
-			AssetDefinition, Create, InspectMetadata, UpdateMetadata,
+			common_asset_kinds::Class, common_strategies::*, AssetDefinition, Create, Destroy,
+			InspectMetadata, UpdateMetadata,
 		},
 		EnsureOrigin,
 	},
@@ -53,15 +52,15 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes> for Pallet<T, I> {
 	}
 }
 
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Bytes>>
+impl<T: Config<I>, I: 'static> UpdateMetadata<Class, WithOrigin<T::RuntimeOrigin, Bytes>>
 	for Pallet<T, I>
 {
 	fn update_metadata(
 		collection: &Self::Id,
-		strategy: CheckOrigin<T::RuntimeOrigin, Bytes>,
+		strategy: WithOrigin<T::RuntimeOrigin, Bytes>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
-		let CheckOrigin(origin, _bytes) = strategy;
+		let WithOrigin(origin, _bytes) = strategy;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
@@ -97,17 +96,17 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	UpdateMetadata<Class, CheckOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>> for Pallet<T, I>
+	UpdateMetadata<Class, WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>> for Pallet<T, I>
 {
 	fn update_metadata(
 		collection: &Self::Id,
-		bytes: CheckOrigin<T::RuntimeOrigin, Bytes<RegularAttribute>>,
+		bytes: WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute>>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
 		let maybe_item = None::<T::ItemId>;
 		let namespace = AttributeNamespace::CollectionOwner;
 
-		let CheckOrigin(origin, Bytes(RegularAttribute(attribute))) = bytes;
+		let WithOrigin(origin, Bytes(RegularAttribute(attribute))) = bytes;
 		let attribute = Self::construct_attribute_key(attribute.to_vec())?;
 		let update =
 			update.map(|data| Self::construct_attribute_value(data.to_vec())).transpose()?;
@@ -180,9 +179,14 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::Account
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Create<ConfiguredCollection<'a, T, I>> for Pallet<T, I> {
-	fn create(strategy: ConfiguredCollection<'a, T, I>) -> Result<T::CollectionId, DispatchError> {
-		let ConfiguredCollection { owner, admin, config } = strategy;
+impl<'a, T: Config<I>, I: 'static>
+	Create<Class, ClassCreation<'a, T::AccountId, CollectionConfigFor<T, I>, T::CollectionId>>
+	for Pallet<T, I>
+{
+	fn create(
+		strategy: ClassCreation<'a, T::AccountId, CollectionConfigFor<T, I>, T::CollectionId>,
+	) -> Result<T::CollectionId, DispatchError> {
+		let WithOwner(owner, WithAdmin(admin, WithConfig(config, _with_auto_id))) = strategy;
 
 		let collection = NextCollectionId::<T, I>::get()
 			.or(T::CollectionId::initial_value())
@@ -204,12 +208,22 @@ impl<'a, T: Config<I>, I: 'static> Create<ConfiguredCollection<'a, T, I>> for Pa
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	Create<CheckOrigin<T::RuntimeOrigin, ConfiguredCollection<'a, T, I>>> for Pallet<T, I>
+	Create<
+		Class,
+		WithOrigin<
+			T::RuntimeOrigin,
+			ClassCreation<'a, T::AccountId, CollectionConfigFor<T, I>, T::CollectionId>,
+		>,
+	> for Pallet<T, I>
 {
 	fn create(
-		strategy: CheckOrigin<T::RuntimeOrigin, ConfiguredCollection<'a, T, I>>,
+		strategy: WithOrigin<
+			T::RuntimeOrigin,
+			ClassCreation<'a, T::AccountId, CollectionConfigFor<T, I>, T::CollectionId>,
+		>,
 	) -> Result<T::CollectionId, DispatchError> {
-		let CheckOrigin(origin, ConfiguredCollection { owner, admin, config }) = strategy;
+		let WithOrigin(origin, creation @ WithOwner(owner, WithAdmin(_, WithConfig(config, _)))) =
+			strategy;
 
 		let collection = NextCollectionId::<T, I>::get()
 			.or(T::CollectionId::initial_value())
@@ -232,17 +246,37 @@ impl<'a, T: Config<I>, I: 'static>
 			);
 		}
 
-		Self::do_create_collection(
-			collection,
-			owner.clone(),
-			admin.clone(),
-			*config,
-			T::CollectionDeposit::get(),
-			Event::Created { collection, creator: owner.clone(), owner: admin.clone() },
-		)?;
+		<Self as Create<_, _>>::create(creation)
+	}
+}
 
-		Self::set_next_collection_id(collection);
+impl<'a, T: Config<I>, I: 'static> Destroy<Class, WithWitness<'a, DestroyWitness, ForceDestroy>>
+	for Pallet<T, I>
+{
+	fn destroy(
+		collection: &Self::Id,
+		strategy: WithWitness<'a, DestroyWitness, ForceDestroy>,
+	) -> DispatchResult {
+		let WithWitness(witness, _force_destroy) = strategy;
 
-		Ok(collection)
+		Self::do_destroy_collection(*collection, *witness, None).map(|_| ())
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static>
+	Destroy<Class, WithOrigin<T::RuntimeOrigin, WithWitness<'a, DestroyWitness, ForceDestroy>>>
+	for Pallet<T, I>
+{
+	fn destroy(
+		collection: &Self::Id,
+		strategy: WithOrigin<T::RuntimeOrigin, WithWitness<'a, DestroyWitness, ForceDestroy>>,
+	) -> DispatchResult {
+		let WithOrigin(origin, WithWitness(witness, _force_destroy)) = strategy;
+
+		let maybe_check_owner = T::ForceOrigin::try_origin(origin)
+			.map(|_| None)
+			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
+
+		Self::do_destroy_collection(*collection, *witness, maybe_check_owner).map(|_| ())
 	}
 }

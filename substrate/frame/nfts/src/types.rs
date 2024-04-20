@@ -547,11 +547,10 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 }
 
 pub mod asset_strategies {
-	use core::marker::PhantomData;
-
 	use super::*;
 	use frame_support::traits::asset_ops::{
-		CreateStrategy, MetadataInspectStrategy, MetadataUpdateStrategy,
+		common_asset_kinds::Class, common_strategies::*, MetadataInspectStrategy,
+		MetadataUpdateStrategy,
 	};
 
 	pub struct RegularAttribute<'a>(pub &'a [u8]);
@@ -571,51 +570,18 @@ pub mod asset_strategies {
 		type Update<'u> = bool;
 	}
 
-	pub struct ConfiguredCollection<'a, T: Config<I>, I: 'static> {
-		pub owner: &'a T::AccountId,
-		pub admin: &'a T::AccountId,
-		pub config: &'a CollectionConfigFor<T, I>,
-	}
-	impl<'a, T: Config<I>, I: 'static> ConfiguredCollection<'a, T, I> {
-		pub fn from(
-			owner: &'a T::AccountId,
-			admin: &'a T::AccountId,
-			config: &'a CollectionConfigFor<T, I>,
-		) -> Self {
-			Self { owner, admin, config }
-		}
-	}
-	impl<'a, T: Config<I>, I: 'static> CreateStrategy for ConfiguredCollection<'a, T, I> {
-		type Success = T::CollectionId;
-	}
+	pub type ClassCreation<'a, AccountId, CollectionConfig, CollectionId> = WithOwner<
+		'a,
+		AccountId,
+		WithAdmin<'a, AccountId, WithConfig<'a, CollectionConfig, WithAutoId<CollectionId>>>,
+	>;
 
-	pub struct ConfiguredItem<'a, T: Config<I>, I: 'static> {
-		pub collection_id: &'a T::CollectionId,
-		pub item_id: &'a T::ItemId,
-		pub owner: &'a T::AccountId,
-		pub item_config: &'a ItemConfig,
-		pub deposit_collection_owner: bool,
-		_phantom: PhantomData<I>,
-	}
-	impl<'a, T: Config<I>, I: 'static> ConfiguredItem<'a, T, I> {
-		pub fn from(
-			collection_id: &'a T::CollectionId,
-			item_id: &'a T::ItemId,
-			owner: &'a T::AccountId,
-			item_config: &'a ItemConfig,
-			deposit_collection_owner: bool,
-		) -> Self {
-			Self {
-				collection_id,
-				item_id,
-				owner,
-				item_config,
-				deposit_collection_owner,
-				_phantom: PhantomData,
-			}
-		}
-	}
-	impl<'a, T: Config<I>, I: 'static> CreateStrategy for ConfiguredItem<'a, T, I> {
-		type Success = ();
-	}
+	pub type DefaultInstanceCreation<'a, AccountId, CollectionId, ItemId> =
+		WithOwner<'a, AccountId, SecondaryTo<'a, Class, CollectionId, WithKnownId<'a, ItemId>>>;
+
+	pub type InstanceCreation<'a, AccountId, ItemConfig, CollectionId, ItemId> = WithOwner<
+		'a,
+		AccountId,
+		WithConfig<'a, ItemConfig, SecondaryTo<'a, Class, CollectionId, WithKnownId<'a, ItemId>>>,
+	>;
 }
