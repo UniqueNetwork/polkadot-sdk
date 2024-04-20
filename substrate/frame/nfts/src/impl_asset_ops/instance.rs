@@ -3,7 +3,11 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
-		asset_ops::{common_asset_kinds::Instance, common_strategies::*, *},
+		asset_ops::{
+			common_asset_kinds::{Class, Instance},
+			common_strategies::*,
+			*,
+		},
 		EnsureOrigin,
 	},
 };
@@ -12,6 +16,10 @@ use sp_runtime::DispatchError;
 
 impl<T: Config<I>, I: 'static> AssetDefinition<Instance> for Pallet<T, I> {
 	type Id = (T::CollectionId, T::ItemId);
+}
+
+impl<T: Config<I>, I: 'static> SecondaryAsset<Class, Instance> for Pallet<T, I> {
+	type PrimaryAsset = Self;
 }
 
 impl<T: Config<I>, I: 'static> InspectMetadata<Instance, Ownership<T::AccountId>> for Pallet<T, I> {
