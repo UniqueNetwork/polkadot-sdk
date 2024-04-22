@@ -3,7 +3,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
-		asset_ops::{
+		tokens::asset_ops::{
 			common_asset_kinds::Class, common_strategies::*, AssetDefinition, Create, Destroy,
 			InspectMetadata, UpdateMetadata,
 		},

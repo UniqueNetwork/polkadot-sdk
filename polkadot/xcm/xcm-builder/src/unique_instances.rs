@@ -1,9 +1,9 @@
 use core::marker::PhantomData;
 use frame_support::traits::{
-	asset_ops::{
+	tokens::asset_ops::{
 		common_asset_kinds::{Class, Instance},
-		common_strategies::{FromTo, IfOwnedBy, SecondaryTo, WithKnownId, WithOwner},
-		AssetDefinition, Create, Destroy, SecondaryAsset, Transfer,
+		common_strategies::{DescendFrom, FromTo, IfOwnedBy, WithKnownId, WithOwner},
+		AssetDefinition, Create, Destroy, Transfer,
 	},
 	Get,
 };
@@ -198,27 +198,24 @@ pub struct BackedDerivativeInstanceAdapter<
 	AccountId,
 	AccountIdConverter,
 	Matcher,
+	ClassDef,
 	InstanceOps,
 	StashLocation,
->(PhantomData<(AccountId, AccountIdConverter, Matcher, InstanceOps, StashLocation)>);
+>(PhantomData<(AccountId, AccountIdConverter, Matcher, ClassDef, InstanceOps, StashLocation)>);
 
-impl<AccountId, AccountIdConverter, Matcher, InstanceOps, StashLocation> TransactAsset
+impl<AccountId, AccountIdConverter, Matcher, ClassDef, InstanceOps, StashLocation> TransactAsset
 	for BackedDerivativeInstanceAdapter<
 		AccountId,
 		AccountIdConverter,
 		Matcher,
+		ClassDef,
 		InstanceOps,
 		StashLocation,
 	> where
 	AccountIdConverter: ConvertLocation<AccountId>,
-	Matcher: MatchesInstance<
-		DerivativeStatus<
-			<InstanceOps::PrimaryAsset as AssetDefinition<Class>>::Id,
-			InstanceOps::Id,
-		>,
-	>,
-	for<'a> InstanceOps: SecondaryAsset<Class, Instance>
-		+ Create<Instance, WithOwner<'a, AccountId, SecondaryTo<'a, Class, Instance, InstanceOps>>>
+	Matcher: MatchesInstance<DerivativeStatus<ClassDef::Id, InstanceOps::Id>>,
+	ClassDef: AssetDefinition<Class>,
+	for<'a> InstanceOps: Create<Instance, WithOwner<'a, AccountId, DescendFrom<'a, ClassDef::Id, InstanceOps::Id>>>
 		+ Transfer<Instance, FromTo<'a, AccountId>>,
 	StashLocation: Get<Location>,
 {
@@ -237,8 +234,7 @@ impl<AccountId, AccountIdConverter, Matcher, InstanceOps, StashLocation> Transac
 
 		let result = match derivative_status {
 			DerivativeStatus::DepositableIn(class_id) =>
-				InstanceOps::create(WithOwner(&to, SecondaryTo::from_primary_id(&class_id)))
-					.map(|_id| ()),
+				InstanceOps::create(WithOwner(&to, DescendFrom::parent_id(&class_id))).map(|_id| ()),
 			DerivativeStatus::Exists(instance_id) => {
 				let from = AccountIdConverter::convert_location(&StashLocation::get())
 					.ok_or(MatchError::AccountIdConversionFailed)?;

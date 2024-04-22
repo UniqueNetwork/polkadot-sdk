@@ -8,10 +8,6 @@ pub trait AssetDefinition<AssetKind> {
 	type Id;
 }
 
-pub trait SecondaryAsset<PrimaryAssetKind, AssetKind>: AssetDefinition<AssetKind> {
-	type PrimaryAsset: AssetDefinition<PrimaryAssetKind>;
-}
-
 pub trait MetadataInspectStrategy {
 	type Value;
 }
@@ -155,36 +151,14 @@ pub mod common_strategies {
 		type Success = ();
 	}
 
-	pub struct SecondaryTo<
-		'a,
-		PrimaryAssetKind,
-		AssetKind,
-		Secondary: SecondaryAsset<PrimaryAssetKind, AssetKind>,
-	>(
-		pub &'a <Secondary::PrimaryAsset as AssetDefinition<PrimaryAssetKind>>::Id,
-		PhantomData<(PrimaryAssetKind, AssetKind)>,
-	);
-	impl<
-			'a,
-			PrimaryAssetKind,
-			AssetKind,
-			Secondary: SecondaryAsset<PrimaryAssetKind, AssetKind>,
-		> SecondaryTo<'a, PrimaryAssetKind, AssetKind, Secondary>
-	{
-		pub fn from_primary_id(
-			primary_id: &'a <Secondary::PrimaryAsset as AssetDefinition<PrimaryAssetKind>>::Id,
-		) -> Self {
+	pub struct DescendFrom<'a, ParentId, ChildId>(pub &'a ParentId, PhantomData<ChildId>);
+	impl<'a, ParentId, ChildId> DescendFrom<'a, ParentId, ChildId> {
+		pub fn parent_id(primary_id: &'a ParentId) -> Self {
 			Self(primary_id, PhantomData)
 		}
 	}
-	impl<
-			'a,
-			PrimaryAssetKind,
-			AssetKind,
-			Secondary: SecondaryAsset<PrimaryAssetKind, AssetKind>,
-		> CreateStrategy for SecondaryTo<'a, PrimaryAssetKind, AssetKind, Secondary>
-	{
-		type Success = Secondary::Id;
+	impl<'a, ParentId, ChildId> CreateStrategy for DescendFrom<'a, ParentId, ChildId> {
+		type Success = ChildId;
 	}
 
 	pub struct WithOwner<'a, Owner, Inner: CreateStrategy>(pub &'a Owner, pub Inner);

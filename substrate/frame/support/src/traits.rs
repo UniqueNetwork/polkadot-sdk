@@ -31,8 +31,6 @@ pub use tokens::{
 	ExistenceRequirement, Locker, WithdrawReasons,
 };
 
-pub mod asset_ops;
-
 mod members;
 #[allow(deprecated)]
 pub use members::{AllowAll, DenyAll, Filter};

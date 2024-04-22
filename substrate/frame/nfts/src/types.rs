@@ -548,7 +548,7 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 
 pub mod asset_strategies {
 	use super::*;
-	use frame_support::traits::asset_ops::{
+	use frame_support::traits::tokens::asset_ops::{
 		common_strategies::*, MetadataInspectStrategy, MetadataUpdateStrategy,
 	};
 
