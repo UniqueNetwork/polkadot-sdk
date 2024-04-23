@@ -1,6 +1,7 @@
 use crate::dispatch::DispatchResult;
 use core::marker::PhantomData;
 use sp_runtime::DispatchError;
+use sp_std::vec::Vec;
 
 /// Trait for providing types for identifying assets of different kinds.
 pub trait AssetDefinition<AssetKind> {
@@ -180,9 +181,7 @@ pub mod common_strategies {
 			Self { id_assignment, owner, config: &(), witness: &() }
 		}
 	}
-	impl<'a, Assignment: IdAssignment, Owner, Config>
-		Owned<'a, Assignment, Owner, Config, ()>
-	{
+	impl<'a, Assignment: IdAssignment, Owner, Config> Owned<'a, Assignment, Owner, Config, ()> {
 		pub fn new_configured(
 			id_assignment: Assignment,
 			owner: &'a Owner,
@@ -209,9 +208,7 @@ pub mod common_strategies {
 			Self { id_assignment, owner, admin, config: &(), witness: &() }
 		}
 	}
-	impl<'a, Assignment: IdAssignment, Account, Config>
-		Adminable<'a, Assignment, Account, Config, ()>
-	{
+	impl<'a, Assignment: IdAssignment, Account, Config> Adminable<'a, Assignment, Account, Config, ()> {
 		pub fn new_configured(
 			id_assignment: Assignment,
 			owner: &'a Account,
