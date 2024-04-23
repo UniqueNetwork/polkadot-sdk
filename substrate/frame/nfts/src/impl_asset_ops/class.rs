@@ -184,8 +184,8 @@ impl<'a, T: Config<I>, I: 'static>
 	for Pallet<T, I>
 {
 	fn create(
-		strategy: Adminable<AutoId<Self::Id>, T::AccountId, CollectionConfigFor<T, I>>,
-	) -> Result<Self::Id, DispatchError> {
+		strategy: Adminable<AutoId<T::CollectionId>, T::AccountId, CollectionConfigFor<T, I>>,
+	) -> Result<T::CollectionId, DispatchError> {
 		let Adminable { owner, admin, config, .. } = strategy;
 
 		let collection = NextCollectionId::<T, I>::get()
@@ -219,9 +219,9 @@ impl<'a, T: Config<I>, I: 'static>
 	fn create(
 		strategy: WithOrigin<
 			T::RuntimeOrigin,
-			Adminable<AutoId<Self::Id>, T::AccountId, CollectionConfigFor<T, I>>,
+			Adminable<AutoId<T::CollectionId>, T::AccountId, CollectionConfigFor<T, I>>,
 		>,
-	) -> Result<Self::Id, DispatchError> {
+	) -> Result<T::CollectionId, DispatchError> {
 		let WithOrigin(origin, creation_strategy @ Adminable { owner, config, .. }) = strategy;
 
 		let collection = NextCollectionId::<T, I>::get()

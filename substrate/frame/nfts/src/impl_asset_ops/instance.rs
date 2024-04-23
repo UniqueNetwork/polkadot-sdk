@@ -322,7 +322,9 @@ impl<'a, T: Config<I>, I: 'static>
 	Create<Instance, Owned<'a, PredefinedId<'a, (T::CollectionId, T::ItemId)>, T::AccountId>>
 	for Pallet<T, I>
 {
-	fn create(strategy: Owned<PredefinedId<Self::Id>, T::AccountId>) -> DispatchResult {
+	fn create(
+		strategy: Owned<PredefinedId<(T::CollectionId, T::ItemId)>, T::AccountId>,
+	) -> DispatchResult {
 		let Owned { id_assignment: PredefinedId((collection, item)), owner: mint_to, .. } =
 			strategy;
 
@@ -338,7 +340,9 @@ impl<'a, T: Config<I>, I: 'static>
 		Owned<'a, PredefinedId<'a, (T::CollectionId, T::ItemId)>, T::AccountId, ItemConfig>,
 	> for Pallet<T, I>
 {
-	fn create(strategy: Owned<PredefinedId<Self::Id>, T::AccountId, ItemConfig>) -> DispatchResult {
+	fn create(
+		strategy: Owned<PredefinedId<(T::CollectionId, T::ItemId)>, T::AccountId, ItemConfig>,
+	) -> DispatchResult {
 		let Owned {
 			id_assignment: PredefinedId((collection, item)),
 			owner: mint_to,
