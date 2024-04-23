@@ -39,6 +39,10 @@ pub trait CreateStrategy {
 	type Success;
 }
 
+pub trait IdAssignment {
+	type ReportedId;
+}
+
 pub trait Create<AssetKind, Strategy: CreateStrategy> {
 	fn create(strategy: Strategy) -> Result<Strategy::Success, DispatchError>;
 }
@@ -49,10 +53,12 @@ pub trait Transfer<AssetKind, Strategy: TransferStrategy>: AssetDefinition<Asset
 	fn transfer(id: &Self::Id, strategy: Strategy) -> DispatchResult;
 }
 
-pub trait DestroyStrategy {}
+pub trait DestroyStrategy {
+	type Success;
+}
 
 pub trait Destroy<AssetKind, Strategy: DestroyStrategy>: AssetDefinition<AssetKind> {
-	fn destroy(id: &Self::Id, strategy: Strategy) -> DispatchResult;
+	fn destroy(id: &Self::Id, strategy: Strategy) -> Result<Strategy::Success, DispatchError>;
 }
 
 pub mod common_asset_kinds {
@@ -79,7 +85,9 @@ pub mod common_strategies {
 		type Success = Inner::Success;
 	}
 	impl<RuntimeOrigin, Inner: TransferStrategy> TransferStrategy for WithOrigin<RuntimeOrigin, Inner> {}
-	impl<RuntimeOrigin, Inner: DestroyStrategy> DestroyStrategy for WithOrigin<RuntimeOrigin, Inner> {}
+	impl<RuntimeOrigin, Inner: DestroyStrategy> DestroyStrategy for WithOrigin<RuntimeOrigin, Inner> {
+		type Success = Inner::Success;
+	}
 
 	pub struct Bytes<Flavor = ()>(pub Flavor);
 	impl Bytes<()> {
@@ -136,51 +144,88 @@ pub mod common_strategies {
 		type Update<'u> = bool;
 	}
 
-	pub struct WithAutoId<Id>(PhantomData<Id>);
-	impl<Id> WithAutoId<Id> {
+	pub struct AutoId<Id>(PhantomData<Id>);
+	impl<Id> AutoId<Id> {
 		pub fn new() -> Self {
 			Self(PhantomData)
 		}
 	}
-	impl<Id> CreateStrategy for WithAutoId<Id> {
-		type Success = Id;
+	impl<Id> IdAssignment for AutoId<Id> {
+		type ReportedId = Id;
 	}
 
-	pub struct WithKnownId<'a, Id>(pub &'a Id);
-	impl<'a, Id> CreateStrategy for WithKnownId<'a, Id> {
-		type Success = ();
+	pub struct PredefinedId<'a, Id>(pub &'a Id);
+	impl<'a, Id> IdAssignment for PredefinedId<'a, Id> {
+		type ReportedId = ();
 	}
 
-	pub struct DescendFrom<'a, ParentId, ChildId>(pub &'a ParentId, PhantomData<ChildId>);
-	impl<'a, ParentId, ChildId> DescendFrom<'a, ParentId, ChildId> {
+	pub struct DeriveIdFrom<'a, ParentId, ChildId>(pub &'a ParentId, PhantomData<ChildId>);
+	impl<'a, ParentId, ChildId> DeriveIdFrom<'a, ParentId, ChildId> {
 		pub fn parent_id(primary_id: &'a ParentId) -> Self {
 			Self(primary_id, PhantomData)
 		}
 	}
-	impl<'a, ParentId, ChildId> CreateStrategy for DescendFrom<'a, ParentId, ChildId> {
-		type Success = ChildId;
+	impl<'a, ParentId, ChildId> IdAssignment for DeriveIdFrom<'a, ParentId, ChildId> {
+		type ReportedId = ChildId;
 	}
 
-	pub struct WithOwner<'a, Owner, Inner: CreateStrategy>(pub &'a Owner, pub Inner);
-	impl<'a, Owner, Inner: CreateStrategy> CreateStrategy for WithOwner<'a, Owner, Inner> {
-		type Success = Inner::Success;
+	pub struct Owned<'a, Assignment: IdAssignment, Owner, Config = (), Witness = ()> {
+		pub id_assignment: Assignment,
+		pub owner: &'a Owner,
+		pub config: &'a Config,
+		pub witness: &'a Witness,
+	}
+	impl<'a, Assignment: IdAssignment, Owner> Owned<'a, Assignment, Owner, (), ()> {
+		pub fn new(id_assignment: Assignment, owner: &'a Owner) -> Self {
+			Self { id_assignment, owner, config: &(), witness: &() }
+		}
+	}
+	impl<'a, Assignment: IdAssignment, Owner, Config>
+		Owned<'a, Assignment, Owner, Config, ()>
+	{
+		pub fn new_configured(
+			id_assignment: Assignment,
+			owner: &'a Owner,
+			config: &'a Config,
+		) -> Self {
+			Self { id_assignment, owner, config, witness: &() }
+		}
+	}
+	impl<'a, Assignment: IdAssignment, Owner, Config, Witness> CreateStrategy
+		for Owned<'a, Assignment, Owner, Config, Witness>
+	{
+		type Success = Assignment::ReportedId;
 	}
 
-	pub struct WithAdmin<'a, Admin, Inner: CreateStrategy>(pub &'a Admin, pub Inner);
-	impl<'a, Admin, Inner: CreateStrategy> CreateStrategy for WithAdmin<'a, Admin, Inner> {
-		type Success = Inner::Success;
+	pub struct Adminable<'a, Assignment: IdAssignment, Account, Config = (), Witness = ()> {
+		pub id_assignment: Assignment,
+		pub owner: &'a Account,
+		pub admin: &'a Account,
+		pub config: &'a Config,
+		pub witness: &'a Witness,
 	}
-
-	pub struct WithConfig<'a, Config, Inner: CreateStrategy>(pub &'a Config, pub Inner);
-	impl<'a, Config, Inner: CreateStrategy> CreateStrategy for WithConfig<'a, Config, Inner> {
-		type Success = Inner::Success;
+	impl<'a, Assignment: IdAssignment, Account> Adminable<'a, Assignment, Account, (), ()> {
+		pub fn new(id_assignment: Assignment, owner: &'a Account, admin: &'a Account) -> Self {
+			Self { id_assignment, owner, admin, config: &(), witness: &() }
+		}
 	}
-
-	pub struct WithWitness<'a, Witness, Inner>(pub &'a Witness, pub Inner);
-	impl<'a, Witness, Inner: CreateStrategy> CreateStrategy for WithWitness<'a, Witness, Inner> {
-		type Success = Inner::Success;
+	impl<'a, Assignment: IdAssignment, Account, Config>
+		Adminable<'a, Assignment, Account, Config, ()>
+	{
+		pub fn new_configured(
+			id_assignment: Assignment,
+			owner: &'a Account,
+			admin: &'a Account,
+			config: &'a Config,
+		) -> Self {
+			Self { id_assignment, owner, admin, config, witness: &() }
+		}
 	}
-	impl<'a, Witness, Inner: DestroyStrategy> DestroyStrategy for WithWitness<'a, Witness, Inner> {}
+	impl<'a, Assignment: IdAssignment, Account, Config, Witness> CreateStrategy
+		for Adminable<'a, Assignment, Account, Config, Witness>
+	{
+		type Success = Assignment::ReportedId;
+	}
 
 	pub struct FromTo<'a, Owner>(pub &'a Owner, pub &'a Owner);
 	impl<'a, Owner> TransferStrategy for FromTo<'a, Owner> {}
@@ -189,8 +234,25 @@ pub mod common_strategies {
 	impl<'a, Owner> TransferStrategy for ForceTo<'a, Owner> {}
 
 	pub struct IfOwnedBy<'a, Owner>(pub &'a Owner);
-	impl<'a, Owner> DestroyStrategy for IfOwnedBy<'a, Owner> {}
+	impl<'a, Owner> DestroyStrategy for IfOwnedBy<'a, Owner> {
+		type Success = ();
+	}
+
+	pub struct WithWitness<'a, Witness>(pub &'a Witness);
+	impl<'a, Witness> DestroyStrategy for WithWitness<'a, Witness> {
+		type Success = Witness;
+	}
+
+	pub struct IfOwnedByWithWitness<'a, Owner, Witness> {
+		pub owner: &'a Owner,
+		pub witness: &'a Witness,
+	}
+	impl<'a, Owner, Witness> DestroyStrategy for IfOwnedByWithWitness<'a, Owner, Witness> {
+		type Success = Witness;
+	}
 
 	pub struct ForceDestroy;
-	impl DestroyStrategy for ForceDestroy {}
+	impl DestroyStrategy for ForceDestroy {
+		type Success = ();
+	}
 }

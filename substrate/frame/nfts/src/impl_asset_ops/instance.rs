@@ -3,11 +3,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
-		tokens::asset_ops::{
-			common_asset_kinds::Instance,
-			common_strategies::*,
-			*,
-		},
+		tokens::asset_ops::{common_asset_kinds::Instance, common_strategies::*, *},
 		EnsureOrigin,
 	},
 };
@@ -323,13 +319,12 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	Create<Instance, DefaultInstanceCreation<'a, T::AccountId, T::CollectionId, T::ItemId>>
+	Create<Instance, Owned<'a, PredefinedId<'a, (T::CollectionId, T::ItemId)>, T::AccountId>>
 	for Pallet<T, I>
 {
-	fn create(
-		strategy: DefaultInstanceCreation<'a, T::AccountId, T::CollectionId, T::ItemId>,
-	) -> DispatchResult {
-		let WithOwner(mint_to, WithKnownId((collection, item))) = strategy;
+	fn create(strategy: Owned<PredefinedId<Self::Id>, T::AccountId>) -> DispatchResult {
+		let Owned { id_assignment: PredefinedId((collection, item)), owner: mint_to, .. } =
+			strategy;
 
 		let item_config = ItemConfig { settings: Self::get_default_item_settings(collection)? };
 
@@ -338,13 +333,18 @@ impl<'a, T: Config<I>, I: 'static>
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	Create<Instance, InstanceCreation<'a, T::AccountId, ItemConfig, T::CollectionId, T::ItemId>>
-	for Pallet<T, I>
+	Create<
+		Instance,
+		Owned<'a, PredefinedId<'a, (T::CollectionId, T::ItemId)>, T::AccountId, ItemConfig>,
+	> for Pallet<T, I>
 {
-	fn create(
-		strategy: InstanceCreation<'a, T::AccountId, ItemConfig, T::CollectionId, T::ItemId>,
-	) -> DispatchResult {
-		let WithOwner(mint_to, WithConfig(item_config, WithKnownId((collection, item)))) = strategy;
+	fn create(strategy: Owned<PredefinedId<Self::Id>, T::AccountId, ItemConfig>) -> DispatchResult {
+		let Owned {
+			id_assignment: PredefinedId((collection, item)),
+			owner: mint_to,
+			config: item_config,
+			..
+		} = strategy;
 
 		Self::do_mint(*collection, *item, None, mint_to.clone(), *item_config, |_, _| Ok(()))
 	}
@@ -353,7 +353,7 @@ impl<'a, T: Config<I>, I: 'static>
 impl<'a, T: Config<I>, I: 'static> Transfer<Instance, FromTo<'a, T::AccountId>> for Pallet<T, I> {
 	fn transfer(
 		(collection, item): &Self::Id,
-		FromTo(from, to): FromTo<'_, T::AccountId>,
+		FromTo(from, to): FromTo<T::AccountId>,
 	) -> DispatchResult {
 		Self::do_transfer(*collection, *item, to.clone(), |_, details| {
 			if details.owner != *from {
@@ -371,7 +371,7 @@ impl<'a, T: Config<I>, I: 'static> Transfer<Instance, FromTo<'a, T::AccountId>> 
 impl<'a, T: Config<I>, I: 'static> Transfer<Instance, ForceTo<'a, T::AccountId>> for Pallet<T, I> {
 	fn transfer(
 		(collection, item): &Self::Id,
-		ForceTo(to): ForceTo<'_, T::AccountId>,
+		ForceTo(to): ForceTo<T::AccountId>,
 	) -> DispatchResult {
 		Self::do_transfer(*collection, *item, to.clone(), |_, _| Ok(()))
 	}

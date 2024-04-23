@@ -549,7 +549,7 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 pub mod asset_strategies {
 	use super::*;
 	use frame_support::traits::tokens::asset_ops::{
-		common_strategies::*, MetadataInspectStrategy, MetadataUpdateStrategy,
+		MetadataInspectStrategy, MetadataUpdateStrategy,
 	};
 
 	pub struct RegularAttribute<'a>(pub &'a [u8]);
@@ -568,19 +568,4 @@ pub mod asset_strategies {
 	impl<'a, AccountId> MetadataUpdateStrategy for HasRole<'a, AccountId> {
 		type Update<'u> = bool;
 	}
-
-	pub type ClassCreation<'a, AccountId, CollectionConfig, CollectionId> = WithOwner<
-		'a,
-		AccountId,
-		WithAdmin<'a, AccountId, WithConfig<'a, CollectionConfig, WithAutoId<CollectionId>>>,
-	>;
-
-	pub type DefaultInstanceCreation<'a, AccountId, CollectionId, ItemId> =
-		WithOwner<'a, AccountId, WithKnownId<'a, (CollectionId, ItemId)>>;
-
-	pub type InstanceCreation<'a, AccountId, ItemConfig, CollectionId, ItemId> = WithOwner<
-		'a,
-		AccountId,
-		WithConfig<'a, ItemConfig, WithKnownId<'a, (CollectionId, ItemId)>>,
-	>;
 }
