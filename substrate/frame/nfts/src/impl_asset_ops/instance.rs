@@ -354,14 +354,28 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Transfer<Instance, FromTo<'a, T::AccountId>> for Pallet<T, I> {
+impl<'a, T: Config<I>, I: 'static> Transfer<Instance, JustTo<'a, T::AccountId>> for Pallet<T, I> {
+	fn transfer((collection, item): &Self::Id, strategy: JustTo<T::AccountId>) -> DispatchResult {
+		let JustTo(to) = strategy;
+
+		Self::do_transfer(*collection, *item, to.clone(), |_, _| Ok(()))
+	}
+}
+
+impl<'a, T: Config<I>, I: 'static>
+	Transfer<Instance, WithOrigin<T::RuntimeOrigin, JustTo<'a, T::AccountId>>> for Pallet<T, I>
+{
 	fn transfer(
 		(collection, item): &Self::Id,
-		FromTo(from, to): FromTo<T::AccountId>,
+		strategy: WithOrigin<T::RuntimeOrigin, JustTo<T::AccountId>>,
 	) -> DispatchResult {
+		let WithOrigin(origin, JustTo(to)) = strategy;
+
+		let signer = ensure_signed(origin)?;
+
 		Self::do_transfer(*collection, *item, to.clone(), |_, details| {
-			if details.owner != *from {
-				let deadline = details.approvals.get(from).ok_or(Error::<T, I>::NoPermission)?;
+			if details.owner != signer {
+				let deadline = details.approvals.get(&signer).ok_or(Error::<T, I>::NoPermission)?;
 				if let Some(d) = deadline {
 					let block_number = frame_system::Pallet::<T>::block_number();
 					ensure!(block_number <= *d, Error::<T, I>::ApprovalExpired);
@@ -372,17 +386,20 @@ impl<'a, T: Config<I>, I: 'static> Transfer<Instance, FromTo<'a, T::AccountId>> 
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Transfer<Instance, ForceTo<'a, T::AccountId>> for Pallet<T, I> {
+impl<'a, T: Config<I>, I: 'static> Transfer<Instance, FromTo<'a, T::AccountId>> for Pallet<T, I> {
 	fn transfer(
 		(collection, item): &Self::Id,
-		ForceTo(to): ForceTo<T::AccountId>,
+		FromTo(from, to): FromTo<T::AccountId>,
 	) -> DispatchResult {
-		Self::do_transfer(*collection, *item, to.clone(), |_, _| Ok(()))
+		Self::do_transfer(*collection, *item, to.clone(), |_, details| {
+			ensure!(details.owner == *from, Error::<T, I>::NoPermission);
+			Ok(())
+		})
 	}
 }
 
-impl<T: Config<I>, I: 'static> Destroy<Instance, ForceDestroy> for Pallet<T, I> {
-	fn destroy((collection, item): &Self::Id, _force_destroy: ForceDestroy) -> DispatchResult {
+impl<T: Config<I>, I: 'static> Destroy<Instance, JustDestroy> for Pallet<T, I> {
+	fn destroy((collection, item): &Self::Id, _force_destroy: JustDestroy) -> DispatchResult {
 		Self::do_burn(*collection, *item, |_details| Ok(()))
 	}
 }
@@ -402,12 +419,12 @@ impl<'a, T: Config<I>, I: 'static> Destroy<Instance, IfOwnedBy<'a, T::AccountId>
 	}
 }
 
-impl<T: Config<I>, I: 'static> Destroy<Instance, WithOrigin<T::RuntimeOrigin, ForceDestroy>>
+impl<T: Config<I>, I: 'static> Destroy<Instance, WithOrigin<T::RuntimeOrigin, JustDestroy>>
 	for Pallet<T, I>
 {
 	fn destroy(
 		(collection, item): &Self::Id,
-		strategy: WithOrigin<T::RuntimeOrigin, ForceDestroy>,
+		strategy: WithOrigin<T::RuntimeOrigin, JustDestroy>,
 	) -> DispatchResult {
 		let WithOrigin(origin, _force_destroy) = strategy;
 

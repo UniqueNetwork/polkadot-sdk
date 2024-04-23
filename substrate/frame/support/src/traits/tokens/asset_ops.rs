@@ -230,8 +230,8 @@ pub mod common_strategies {
 	pub struct FromTo<'a, Owner>(pub &'a Owner, pub &'a Owner);
 	impl<'a, Owner> TransferStrategy for FromTo<'a, Owner> {}
 
-	pub struct ForceTo<'a, Owner>(pub &'a Owner);
-	impl<'a, Owner> TransferStrategy for ForceTo<'a, Owner> {}
+	pub struct JustTo<'a, Owner>(pub &'a Owner);
+	impl<'a, Owner> TransferStrategy for JustTo<'a, Owner> {}
 
 	pub struct IfOwnedBy<'a, Owner>(pub &'a Owner);
 	impl<'a, Owner> DestroyStrategy for IfOwnedBy<'a, Owner> {
@@ -251,8 +251,8 @@ pub mod common_strategies {
 		type Success = Witness;
 	}
 
-	pub struct ForceDestroy;
-	impl DestroyStrategy for ForceDestroy {
+	pub struct JustDestroy;
+	impl DestroyStrategy for JustDestroy {
 		type Success = ();
 	}
 }

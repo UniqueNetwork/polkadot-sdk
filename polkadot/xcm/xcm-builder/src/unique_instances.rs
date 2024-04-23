@@ -105,7 +105,8 @@ impl<AccountId, AccountIdConverter, Matcher, InstanceOps> TransactAsset
 where
 	AccountIdConverter: ConvertLocation<AccountId>,
 	Matcher: MatchesInstance<InstanceOps::Id>,
-	for<'a> InstanceOps: Create<Instance, Owned<'a, PredefinedId<'a, InstanceOps::Id>, AccountId>>
+	for<'a> InstanceOps: AssetDefinition<Instance>
+		+ Create<Instance, Owned<'a, PredefinedId<'a, InstanceOps::Id>, AccountId>>
 		+ Transfer<Instance, FromTo<'a, AccountId>>
 		+ Destroy<Instance, IfOwnedBy<'a, AccountId>>,
 {
