@@ -25,12 +25,14 @@ use core::marker::PhantomData;
 use sp_runtime::DispatchError;
 use sp_std::vec::Vec;
 
-/// Trait for defining an asset of a certain kind
-/// by providing a type for identifying the asset.
+/// Trait for defining an asset of a certain kind.
+/// The definition must provide the `Id` type to identify the asset.
 ///
 /// The common asset kinds are:
-/// * an asset [`Class`](common_asset_kinds::Class) of instances
-/// * an asset [`Instance`](common_asset_kinds::Instance)
+/// * The [`Class`](common_asset_kinds::Class) kind is a class-like asset.
+/// For example, a collection of non-fungible tokens.
+/// * The [`Instance`](common_asset_kinds::Instance) kind is an instance-like asset.
+/// For example, a non-fungible token (which may or may not be part of a certain class).
 ///
 /// Other asset kinds can be defined.
 pub trait AssetDefinition<AssetKind> {
