@@ -29,10 +29,11 @@ use sp_std::vec::Vec;
 /// The definition must provide the `Id` type to identify the asset.
 ///
 /// The common asset kinds are:
-/// * The [`Class`](common_asset_kinds::Class) kind is a class-like asset.
-/// For example, a collection of non-fungible tokens.
-/// * The [`Instance`](common_asset_kinds::Instance) kind is an instance-like asset.
-/// For example, a non-fungible token (which may or may not be part of a certain class).
+/// * The [`Class`](common_asset_kinds::Class) asset kind is of assets that resemble class-like
+/// entities. For example, a collection of non-fungible tokens belongs to this kind.
+/// * The [`Instance`](common_asset_kinds::Instance) asset kind is of assets that resemble concrete
+/// instances of something. For example, a non-fungible token (which may or may not be part of a
+/// certain class) belongs to this kind.
 ///
 /// Other asset kinds can be defined.
 pub trait AssetDefinition<AssetKind> {
@@ -196,11 +197,11 @@ pub trait Destroy<AssetKind, Strategy: DestroyStrategy>: AssetDefinition<AssetKi
 
 /// This modules contains the common asset kinds.
 pub mod common_asset_kinds {
-	/// The `Class` asset kind represents class-like assets.
+	/// The `Class` asset kind is of assets that resemble class-like entities.
 	/// For instance, a collection of non-fungible tokens is an asset of this kind.
 	pub struct Class;
 
-	/// The `Instance` asset kind represents instance-like assets.
+	/// The `Instance` asset kind represents assets resembling instances of something.
 	/// For instance, a single non-fungible token is an asset of this kind.
 	///
 	/// An instance asset is not necessarily bound to a class.
