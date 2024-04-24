@@ -210,6 +210,12 @@ pub mod common_asset_kinds {
 pub mod common_strategies {
 	use super::*;
 
+	/// The `WithOrigin` is a strategy that accepts a runtime origin and the `Inner` strategy.
+	///
+	/// It is meant to be used when the origin check should be performed
+	/// in addition to the `Inner` strategy.
+	///
+	/// The `WithOrigin` implements any strategy that the `Inner` implements.
 	pub struct WithOrigin<RuntimeOrigin, Inner>(pub RuntimeOrigin, pub Inner);
 	impl<RuntimeOrigin, Inner: MetadataInspectStrategy> MetadataInspectStrategy
 		for WithOrigin<RuntimeOrigin, Inner>
