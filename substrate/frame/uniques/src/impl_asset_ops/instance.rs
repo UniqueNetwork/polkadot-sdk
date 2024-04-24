@@ -61,7 +61,7 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Instance, Bytes<Attribute<'a>
 impl<T: Config<I>, I: 'static> InspectMetadata<Instance, CanTransfer> for Pallet<T, I> {
 	fn inspect_metadata(
 		(collection, item): &Self::Id,
-		CanTransfer: CanTransfer,
+		_can_transfer: CanTransfer,
 	) -> Result<bool, DispatchError> {
 		match (Collection::<T, I>::get(collection), Item::<T, I>::get(collection, item)) {
 			(Some(cd), Some(id)) => Ok(!cd.is_frozen && !id.is_frozen),

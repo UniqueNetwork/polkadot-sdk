@@ -1,34 +1,105 @@
+//! Abstract asset operations traits.
+//!
+//! The following operations are defined:
+//! * [`InspectMetadata`]
+//! * [`UpdateMetadata`]
+//! * [`Create`]
+//! * [`Transfer`]
+//! * [`Destroy`]
+//!
+//! Also, all the operations above (except the `Create` operation) use
+//! the [`AssetDefinition`] to retrieve the `Id` type of the asset.
+//!
+//! Each asset operation can be implemented for different asset kinds
+//! such as [`Class`](common_asset_kinds::Class) and [`Instance`](common_asset_kinds::Instance).
+//!
+//! Also, an asset operation can be implemented multiple times
+//! using different strategies associated with this operation.
+//!
+//! A strategy defines the operation behavior,
+//! may supply additional parameters,
+//! and defines a return value type of the operation.
+
 use crate::dispatch::DispatchResult;
 use core::marker::PhantomData;
 use sp_runtime::DispatchError;
 use sp_std::vec::Vec;
 
-/// Trait for providing types for identifying assets of different kinds.
+/// Trait for defining an asset of a certain kind
+/// by providing a type for identifying the asset.
+///
+/// The common asset kinds are:
+/// * an asset [`Class`](common_asset_kinds::Class) of instances
+/// * an asset [`Instance`](common_asset_kinds::Instance)
+///
+/// Other asset kinds can be defined.
 pub trait AssetDefinition<AssetKind> {
-	/// Type for identifying an asset.
+	/// Type for identifying the asset.
 	type Id;
 }
 
+/// A strategy for use in the [`InspectMetadata`] implementations.
+///
+/// The common inspect strategies are:
+/// * [`Bytes`](common_strategies::Bytes)
+/// * [`Ownership`](common_strategies::Ownership)
+/// * [`CanCreate`](common_strategies::CanCreate)
+/// * [`CanTransfer`](common_strategies::CanTransfer)
+/// * [`CanDestroy`](common_strategies::CanDestroy)
+/// * [`CanUpdateMetadata`](common_strategies::CanUpdateMetadata)
 pub trait MetadataInspectStrategy {
+	/// The type to return from the [`InspectMetadata::inspect_metadata`] function.
 	type Value;
 }
 
+/// A trait representing the ability of a certain asset kind to **provide** its metadata
+/// information.
+///
+/// This trait can be implemented multiple times using different [`inspect
+/// strategies`](MetadataInspectStrategy).
+///
+/// An inspect strategy defines how the asset metadata is identified/retrieved
+/// and what [`Value`](MetadataInspectStrategy::Value) type is returned.
 pub trait InspectMetadata<AssetKind, Strategy: MetadataInspectStrategy>:
 	AssetDefinition<AssetKind>
 {
+	/// Inspect metadata information of the asset
+	/// using the given `id` and the inspect `strategy`.
+	///
+	/// The ID type is retrieved from the [`AssetDefinition`].
 	fn inspect_metadata(
 		id: &Self::Id,
 		strategy: Strategy,
 	) -> Result<Strategy::Value, DispatchError>;
 }
 
+/// A strategy for use in the [`UpdateMetadata`] implementations.
+///
+/// The common update strategies are:
+/// * [`Bytes`](common_strategies::Bytes)
+/// * [`CanCreate`](common_strategies::CanCreate)
+/// * [`CanTransfer`](common_strategies::CanTransfer)
+/// * [`CanDestroy`](common_strategies::CanDestroy)
+/// * [`CanUpdateMetadata`](common_strategies::CanUpdateMetadata)
 pub trait MetadataUpdateStrategy {
+	/// The type of metadata update to accept in the [`UpdateMetadata::update_metadata`] function.
 	type Update<'u>;
 }
 
+/// A trait representing the ability of a certain asset kind to **update** its metadata information.
+///
+/// This trait can be implemented multiple times using different [`update
+/// strategies`](MetadataUpdateStrategy).
+///
+/// An update strategy defines how the asset metadata is identified
+/// and what [`Update`](MetadataUpdateStrategy::Update) type is used.
 pub trait UpdateMetadata<AssetKind, Strategy: MetadataUpdateStrategy>:
 	AssetDefinition<AssetKind>
 {
+	/// Update metadata information of the asset
+	/// using the given `id`, the update `strategy`, and the `update` value.
+	///
+	/// The ID type is retrieved from the [`AssetDefinition`].
 	fn update_metadata(
 		id: &Self::Id,
 		strategy: Strategy,
@@ -36,38 +107,106 @@ pub trait UpdateMetadata<AssetKind, Strategy: MetadataUpdateStrategy>:
 	) -> DispatchResult;
 }
 
+/// A strategy for use in the [`Create`] implementations.
+///
+/// The common "create" strategies are:
+/// * [`Owned`](common_strategies::Owned)
+/// * [`Adminable`](common_strategies::Adminable)
 pub trait CreateStrategy {
+	/// This type represents successful asset creation.
+	/// It will be the return type of the [`Create::create`] function.
 	type Success;
 }
 
+/// An ID assignment approach to use in the "create" strategies.
+///
+/// The common ID assignments are:
+/// * [`AutoId`](common_strategies::AutoId)
+/// * [`PredefinedId`](common_strategies::PredefinedId)
+/// * [`DeriveIdFrom`](common_strategies::DeriveIdFrom)
 pub trait IdAssignment {
+	/// The reported ID type.
+	///
+	/// Examples:
+	/// * [`AutoId`](common_strategies::AutoId) returns ID of the newly created asset
+	/// * [`PredefinedId`](common_strategies::PredefinedId) returns `()` since the ID is already
+	///   defined
+	/// * [`DeriveIdFrom`](common_strategies::DeriveIdFrom) returns the derived ID
 	type ReportedId;
 }
 
+/// A trait representing the ability of a certain asset kind to be created.
+///
+/// This trait can be implemented multiple times using different [`"create"
+/// strategies`](CreateStrategy).
+///
+/// A create strategy defines all aspects of asset creation including how an asset ID is assigned.
 pub trait Create<AssetKind, Strategy: CreateStrategy> {
+	/// Create a new asset using the provided `strategy`.
 	fn create(strategy: Strategy) -> Result<Strategy::Success, DispatchError>;
 }
 
+/// A strategy for use in the [`Transfer`] implementations.
+///
+/// The common transfer strategies are:
+/// * [`JustTo`](common_strategies::JustTo)
+/// * [`FromTo`](common_strategies::FromTo)
 pub trait TransferStrategy {}
 
+/// A trait representing the ability of a certain asset kind to be transferred.
+///
+/// This trait can be implemented multiple times using different [`transfer
+/// strategies`](TransferStrategy).
+///
+/// A transfer strategy defines transfer parameters.
 pub trait Transfer<AssetKind, Strategy: TransferStrategy>: AssetDefinition<AssetKind> {
+	/// Transfer the asset identified by the given `id` using the provided `strategy`.
+	///
+	/// The ID type is retrieved from the [`AssetDefinition`].
 	fn transfer(id: &Self::Id, strategy: Strategy) -> DispatchResult;
 }
 
+/// A strategy for use in the [`Destroy`] implementations.
+///
+/// The common destroy strategies are:
+/// * [`JustDestroy`](common_strategies::JustDestroy)
+/// * [`IfOwnedBy`](common_strategies::IfOwnedBy)
+/// * [`WithWitness`](common_strategies::WithWitness)
+/// * [`IfOwnedByWithWitness`](common_strategies::IfOwnedByWithWitness)
 pub trait DestroyStrategy {
+	/// This type represents successful asset destruction.
+	/// It will be the return type of the [`Destroy::destroy`] function.
 	type Success;
 }
 
+/// A trait representing the ability of a certain asset kind to be destroyed.
+///
+/// This trait can be implemented multiple times using different [`destroy
+/// strategies`](DestroyStrategy).
+///
+/// A destroy strategy defines destroy parameters and the result value type.
 pub trait Destroy<AssetKind, Strategy: DestroyStrategy>: AssetDefinition<AssetKind> {
+	/// Destroy the asset identified by the given `id` using the provided `strategy`.
+	///
+	/// The ID type is retrieved from the [`AssetDefinition`].
 	fn destroy(id: &Self::Id, strategy: Strategy) -> Result<Strategy::Success, DispatchError>;
 }
 
+/// This modules contains the common asset kinds.
 pub mod common_asset_kinds {
+	/// The `Class` asset kind represents class-like assets.
+	/// For instance, a collection of non-fungible tokens is an asset of this kind.
 	pub struct Class;
 
+	/// The `Instance` asset kind represents instance-like assets.
+	/// For instance, a single non-fungible token is an asset of this kind.
+	///
+	/// An instance asset is not necessarily bound to a class.
+	/// There could be "classless" instances.
 	pub struct Instance;
 }
 
+/// This modules contains the common asset ops strategies.
 pub mod common_strategies {
 	use super::*;
 
@@ -90,6 +229,17 @@ pub mod common_strategies {
 		type Success = Inner::Success;
 	}
 
+	/// The `Bytes` strategy represents raw metadata bytes.
+	/// It is both an [inspect](MetadataInspectStrategy) and [update](MetadataUpdateStrategy)
+	/// metadata strategy.
+	///
+	/// * As the inspect strategy, it returns `Vec<u8>`.
+	/// * As the update strategy, it accepts `Option<&[u8]>`, where `None` means data removal.
+	///
+	/// By default, the `Bytes` identifies a byte blob associated with the asset (the only one
+	/// blob). However, a user can define several flavors of this strategy by supplying the `Flavor`
+	/// type. The `Flavor` type can also contain additional data (like a byte key) to identify a
+	/// certain byte data.
 	pub struct Bytes<Flavor = ()>(pub Flavor);
 	impl Bytes<()> {
 		pub fn new() -> Self {
@@ -103,6 +253,8 @@ pub mod common_strategies {
 		type Update<'u> = Option<&'u [u8]>;
 	}
 
+	/// The `Ownership` [inspect](MetadataInspectStrategy) metadata strategy allows getting the
+	/// owner of an asset.
 	pub struct Ownership<Owner>(PhantomData<Owner>);
 	impl<Owner> Ownership<Owner> {
 		pub fn new() -> Self {
@@ -113,38 +265,108 @@ pub mod common_strategies {
 		type Value = Owner;
 	}
 
-	pub struct CanCreate;
-	impl MetadataInspectStrategy for CanCreate {
+	/// The `CanCreate` strategy represents the ability to create an asset.
+	/// It is both an [inspect](MetadataInspectStrategy) and [update](MetadataUpdateStrategy)
+	/// metadata strategy.
+	///
+	/// * As the inspect strategy, it returns `bool`.
+	/// * As the update strategy is accepts `bool`.
+	///
+	/// By default, this strategy means the ability to create an asset "in general".
+	/// However, a user can define several flavors of this strategy by supplying the `Flavor` type.
+	/// The `Flavor` type can add more details to the strategy.
+	/// For instance, "Can **a specific user** create an asset?".
+	pub struct CanCreate<Flavor = ()>(pub Flavor);
+	impl CanCreate<()> {
+		pub fn new() -> Self {
+			Self(())
+		}
+	}
+	impl<Flavor> MetadataInspectStrategy for CanCreate<Flavor> {
 		type Value = bool;
 	}
-	impl MetadataUpdateStrategy for CanCreate {
+	impl<Flavor> MetadataUpdateStrategy for CanCreate<Flavor> {
 		type Update<'u> = bool;
 	}
 
-	pub struct CanTransfer;
-	impl MetadataInspectStrategy for CanTransfer {
+	/// The `CanTransfer` strategy represents the ability to transfer an asset.
+	/// It is both an [inspect](MetadataInspectStrategy) and [update](MetadataUpdateStrategy)
+	/// metadata strategy.
+	///
+	/// * As the inspect strategy, it returns `bool`.
+	/// * As the update strategy is accepts `bool`.
+	///
+	/// By default, this strategy means the ability to transfer an asset "in general".
+	/// However, a user can define several flavors of this strategy by supplying the `Flavor` type.
+	/// The `Flavor` type can add more details to the strategy.
+	/// For instance, "Can **a specific user** transfer an asset of **another user**?".
+	pub struct CanTransfer<Flavor = ()>(pub Flavor);
+	impl CanTransfer<()> {
+		pub fn new() -> Self {
+			Self(())
+		}
+	}
+	impl<Flavor> MetadataInspectStrategy for CanTransfer<Flavor> {
 		type Value = bool;
 	}
-	impl MetadataUpdateStrategy for CanTransfer {
+	impl<Flavor> MetadataUpdateStrategy for CanTransfer<Flavor> {
 		type Update<'u> = bool;
 	}
 
-	pub struct CanDestroy;
-	impl MetadataInspectStrategy for CanDestroy {
+	/// The `CanDestroy` strategy represents the ability to destroy an asset.
+	/// It is both an [inspect](MetadataInspectStrategy) and [update](MetadataUpdateStrategy)
+	/// metadata strategy.
+	///
+	/// * As the inspect strategy, it returns `bool`.
+	/// * As the update strategy is accepts `bool`.
+	///
+	/// By default, this strategy means the ability to destroy an asset "in general".
+	/// However, a user can define several flavors of this strategy by supplying the `Flavor` type.
+	/// The `Flavor` type can add more details to the strategy.
+	/// For instance, "Can **a specific user** destroy an asset of **another user**?".
+	pub struct CanDestroy<Flavor = ()>(pub Flavor);
+	impl CanDestroy<()> {
+		pub fn new() -> Self {
+			Self(())
+		}
+	}
+	impl<Flavor> MetadataInspectStrategy for CanDestroy<Flavor> {
 		type Value = bool;
 	}
-	impl MetadataUpdateStrategy for CanDestroy {
+	impl<Flavor> MetadataUpdateStrategy for CanDestroy<Flavor> {
 		type Update<'u> = bool;
 	}
 
-	pub struct CanUpdateMetadata;
-	impl MetadataInspectStrategy for CanUpdateMetadata {
+	/// The `CanUpdateMetadata` strategy represents the ability to update the metadata of an asset.
+	/// It is both an [inspect](MetadataInspectStrategy) and [update](MetadataUpdateStrategy)
+	/// metadata strategy.
+	///
+	/// * As the inspect strategy, it returns `bool`.
+	/// * As the update strategy is accepts `bool`.
+	///
+	/// By default, this strategy means the ability to update the metadata of an asset "in general".
+	/// However, a user can define several flavors of this strategy by supplying the `Flavor` type.
+	/// The `Flavor` type can add more details to the strategy.
+	/// For instance, "Can **a specific user** update the metadata of an asset **under a certain
+	/// key**?".
+	pub struct CanUpdateMetadata<Flavor = ()>(pub Flavor);
+	impl CanUpdateMetadata<()> {
+		pub fn new() -> Self {
+			Self(())
+		}
+	}
+	impl<Flavor> MetadataInspectStrategy for CanUpdateMetadata<Flavor> {
 		type Value = bool;
 	}
-	impl MetadataUpdateStrategy for CanUpdateMetadata {
+	impl<Flavor> MetadataUpdateStrategy for CanUpdateMetadata<Flavor> {
 		type Update<'u> = bool;
 	}
 
+	/// The `AutoId` is an ID assignment approach intended to be used in [`"create"
+	/// strategies`](CreateStrategy).
+	///
+	/// It accepts the `Id` type of the asset.
+	/// The "create" strategy should report the value of type `Id` upon successful asset creation.
 	pub struct AutoId<Id>(PhantomData<Id>);
 	impl<Id> AutoId<Id> {
 		pub fn new() -> Self {
@@ -155,11 +377,26 @@ pub mod common_strategies {
 		type ReportedId = Id;
 	}
 
+	/// The `PredefinedId` is an ID assignment approach intended to be used in [`"create"
+	/// strategies`](CreateStrategy).
+	///
+	/// It accepts a value of the `Id` type.
+	/// The "create" strategy should use the provided ID value to create a new asset.
 	pub struct PredefinedId<'a, Id>(pub &'a Id);
 	impl<'a, Id> IdAssignment for PredefinedId<'a, Id> {
 		type ReportedId = ();
 	}
 
+	/// The `DeriveIdFrom` is an ID assignment approach intended to be used in [`"create"
+	/// strategies`](CreateStrategy).
+	///
+	/// It accepts the `ParentId` and the `ChildId`.
+	/// The `ChildId` value should be computed by the "create" strategy using the `ParentId` value.
+	///
+	/// The "create" strategy should report the `ChildId` value upon successful asset creation.
+	///
+	/// An example of ID derivation is the creation of an NFT inside a collection using the
+	/// collection ID. The child ID in this case is the full ID of the NFT.
 	pub struct DeriveIdFrom<'a, ParentId, ChildId>(pub &'a ParentId, PhantomData<ChildId>);
 	impl<'a, ParentId, ChildId> DeriveIdFrom<'a, ParentId, ChildId> {
 		pub fn parent_id(primary_id: &'a ParentId) -> Self {
@@ -170,6 +407,16 @@ pub mod common_strategies {
 		type ReportedId = ChildId;
 	}
 
+	/// The `Owned` is a [`"create" strategy`](CreateStrategy).
+	///
+	/// It accepts:
+	/// * The [ID assignment](IdAssignment) approach
+	/// * The `owner`
+	/// * The optional `config`
+	/// * The optional creation `witness`
+	///
+	/// The [`Success`](CreateStrategy::Success) will contain
+	/// the [reported ID](IdAssignment::ReportedId) of the ID assignment approach.
 	pub struct Owned<'a, Assignment: IdAssignment, Owner, Config = (), Witness = ()> {
 		pub id_assignment: Assignment,
 		pub owner: &'a Owner,
@@ -196,6 +443,17 @@ pub mod common_strategies {
 		type Success = Assignment::ReportedId;
 	}
 
+	/// The `Adminable` is a [`"create" strategy`](CreateStrategy).
+	///
+	/// It accepts:
+	/// * The [ID assignment](IdAssignment) approach
+	/// * The `owner`
+	/// * The `admin`
+	/// * The optional `config`
+	/// * The optional creation `witness`
+	///
+	/// The [`Success`](CreateStrategy::Success) will contain
+	/// the [reported ID](IdAssignment::ReportedId) of the ID assignment approach.
 	pub struct Adminable<'a, Assignment: IdAssignment, Account, Config = (), Witness = ()> {
 		pub id_assignment: Assignment,
 		pub owner: &'a Account,
@@ -224,32 +482,53 @@ pub mod common_strategies {
 		type Success = Assignment::ReportedId;
 	}
 
-	pub struct FromTo<'a, Owner>(pub &'a Owner, pub &'a Owner);
-	impl<'a, Owner> TransferStrategy for FromTo<'a, Owner> {}
-
+	/// The `JustTo` is a [`transfer strategy`](TransferStrategy).
+	///
+	/// It accepts the target of the transfer,
+	/// i.e., who will become the asset's owner after the transfer.
 	pub struct JustTo<'a, Owner>(pub &'a Owner);
 	impl<'a, Owner> TransferStrategy for JustTo<'a, Owner> {}
 
+	/// The `FromTo` is a [`transfer strategy`](TransferStrategy).
+	///
+	/// It accepts two parameters: `from` and `to` whom the asset should be transferred.
+	pub struct FromTo<'a, Owner>(pub &'a Owner, pub &'a Owner);
+	impl<'a, Owner> TransferStrategy for FromTo<'a, Owner> {}
+
+	/// The `JustDestroy` is a [`destroy strategy`](DestroyStrategy).
+	///
+	/// It represents an "unchecked" destruction of the asset.
+	pub struct JustDestroy;
+	impl DestroyStrategy for JustDestroy {
+		type Success = ();
+	}
+
+	/// The `IfOwnedBy` is a [`destroy strategy`](DestroyStrategy).
+	///
+	/// It accepts a possible owner of the asset.
+	/// If the provided entity owns the asset, it will be destroyed.
 	pub struct IfOwnedBy<'a, Owner>(pub &'a Owner);
 	impl<'a, Owner> DestroyStrategy for IfOwnedBy<'a, Owner> {
 		type Success = ();
 	}
 
+	/// The `WithWitness` is a [`destroy strategy`](DestroyStrategy).
+	///
+	/// It accepts a `Witness` to destroy an asset.
+	/// It will also return a `Witness` value upon destruction.
 	pub struct WithWitness<'a, Witness>(pub &'a Witness);
 	impl<'a, Witness> DestroyStrategy for WithWitness<'a, Witness> {
 		type Success = Witness;
 	}
 
+	/// The `IfOwnedByWithWitness` is a [`destroy strategy`](DestroyStrategy).
+	///
+	/// It is a combination of the [`IfOwnedBy`] and the [`WithWitness`] strategies.
 	pub struct IfOwnedByWithWitness<'a, Owner, Witness> {
 		pub owner: &'a Owner,
 		pub witness: &'a Witness,
 	}
 	impl<'a, Owner, Witness> DestroyStrategy for IfOwnedByWithWitness<'a, Owner, Witness> {
 		type Success = Witness;
-	}
-
-	pub struct JustDestroy;
-	impl DestroyStrategy for JustDestroy {
-		type Success = ();
 	}
 }
