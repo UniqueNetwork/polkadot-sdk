@@ -18,7 +18,7 @@
 //!
 //! A strategy defines the operation behavior,
 //! may supply additional parameters,
-//! and defines a return value type of the operation.
+//! and may define a return value type of the operation.
 
 use crate::dispatch::DispatchResult;
 use core::marker::PhantomData;
