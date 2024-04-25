@@ -11,11 +11,45 @@ use frame_support::traits::{
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{ConvertLocation, Error as MatchError, MatchesInstance, TransactAsset};
 
+/// The status of a derivative instance.
 pub enum DerivativeStatus<ClassId, InstanceId> {
+	/// The derivative can be deposited (created) in the given class.
 	DepositableIn(ClassId),
+
+	/// The derivative already exists and it has the given ID.
 	Exists(InstanceId),
 }
 
+/// The `BackedDerivativeInstanceAdapter` implements the `TransactAsset` for unique instances
+/// (NFT-like entities).
+///
+/// The adapter uses the following asset operations:
+/// * [`Create`] with the [`Owned`] strategy that uses the [`DeriveIdFrom`] id assignment.
+///     * The [`DeriveIdFrom`] accepts the value of the `Id` type retrieved from the class [asset
+///       definition](AssetDefinition)
+///     (`ClassDef` generic parameter, represents a class-like entity such as a collection of NFTs).
+/// * [`Transfer`] with [`FromTo`] strategy
+///
+/// This adapter assumes that a new asset can be created and an existing asset can be transferred.
+/// Also, the adapter assumes that the asset can't be destroyed.
+/// So, it transfers the asset to the `StashLocation` on withdrawal.
+///
+/// On deposit, the adapter consults the [`DerivativeStatus`] returned from the `Matcher`.
+/// If the asset is depositable in a certain class, it will be created within that class.
+/// Otherwise, if the asset exists, it will be transferred from the `StashLocation` to the
+/// beneficiary.
+///
+/// Transfers work as expected, transferring the asset from the `from` location to the beneficiary.
+///
+/// This adapter is meant to be used in non-reserve locations where derivatives
+/// can't be properly destroyed and then recreated.
+///
+/// For instance, if derivatives are created in an ERC-721 Smart Contract,
+/// we can't recreate them with the same ID. We can only create a derivative with a new ID.
+/// This will waste the active storage since all destroyed instances continue to exist under the
+/// zero account.
+///
+/// To avoid that situation, the `StashLocation` is used to hold the withdrawn derivatives.
 pub struct BackedDerivativeInstanceAdapter<
 	AccountId,
 	AccountIdConverter,

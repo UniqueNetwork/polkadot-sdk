@@ -30,8 +30,8 @@ mod asset_conversion;
 #[allow(deprecated)]
 pub use asset_conversion::ConvertedConcreteAssetId;
 pub use asset_conversion::{
-	AsPrefixedGeneralIndex, ConvertedConcreteId, ManyNonFungibleClasses,
-	MatchedConvertedConcreteId, SingleNonFungibleClass,
+	AsPrefixedGeneralIndex, ClasslessInstances, ConvertedConcreteId, InstancesOfClasses,
+	MatchedConvertedConcreteId,
 };
 
 mod barriers;

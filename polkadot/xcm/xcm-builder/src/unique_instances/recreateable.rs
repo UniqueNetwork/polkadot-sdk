@@ -1,13 +1,39 @@
-use super::{LOG_TARGET, transfer_instance};
+use super::{transfer_instance, LOG_TARGET};
 use core::marker::PhantomData;
 use frame_support::traits::tokens::asset_ops::{
-    common_asset_kinds::Instance,
-    common_strategies::{FromTo, IfOwnedBy, Owned, PredefinedId},
-    AssetDefinition, Create, Destroy, Transfer,
+	common_asset_kinds::Instance,
+	common_strategies::{FromTo, IfOwnedBy, Owned, PredefinedId},
+	AssetDefinition, Create, Destroy, Transfer,
 };
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{ConvertLocation, Error as MatchError, MatchesInstance, TransactAsset};
 
+/// The `RecreateableInstanceAdapter` implements the `TransactAsset` for unique instances (NFT-like
+/// entities).
+/// The adapter uses the following asset operations:
+/// * [`Create`] with the [`Owned`] strategy that uses the [`PredefinedId`].
+/// The `Id` used is the one from the [asset's definition](AssetDefinition).
+/// * [`Transfer`] with [`FromTo`] strategy
+/// * [`Destroy`] with [`IfOwnedBy`] strategy
+///
+/// This adapter assumes that the asset can be safely destroyed
+/// without the loss of any important data. It will destroy the asset on withdrawal.
+/// Similarly, it assumes that the asset can be recreated with the same ID on deposit.
+///
+/// Transfers work without additional assumptions.
+///
+/// If the above assumptions are true,
+/// this adapter can be used both to work with the original instances in a reserve location
+/// and to work with derivatives in other locations.
+///
+/// Only the assets matched by `Matcher` are affected.
+/// If the `Matcher` recognizes the instance, it should return its `Id`.
+///
+/// Note on teleports:
+/// This adapter doesn't implement teleports at the moment since unique instances have associated
+/// data that should be teleported along.
+/// Currently, neither XCM has the ability to transfer such data
+/// nor a standard approach exists in the ecosystem for this use case.
 pub struct RecreateableInstanceAdapter<AccountId, AccountIdConverter, Matcher, InstanceOps>(
 	PhantomData<(AccountId, AccountIdConverter, Matcher, InstanceOps)>,
 );

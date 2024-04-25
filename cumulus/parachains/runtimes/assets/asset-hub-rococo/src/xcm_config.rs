@@ -54,7 +54,7 @@ use xcm_builder::{
 	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain,
 	DenyThenTry, DescribeAllTerminal, DescribeFamily, EnsureXcmOrigin, FrameTransactionalProcessor,
 	FungibleAdapter, FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription,
-	IsConcrete, LocalMint, ManyNonFungibleClasses, NetworkExportTableItem, NoChecking,
+	InstancesOfClasses, IsConcrete, LocalMint, NetworkExportTableItem, NoChecking,
 	ParentAsSuperuser, ParentIsPreset, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignPaidRemoteExporter, SovereignSignedViaLocation, StartsWith,
@@ -89,6 +89,7 @@ parameter_types! {
 	pub const GovernanceLocation: Location = Location::parent();
 	pub StakingPot: AccountId = CollatorSelection::account_id();
 	pub TreasuryAccount: AccountId = TREASURY_PALLET_ID.into_account_truncating();
+	pub TreasuryLocation: Location = AccountId32 { network: Some(RelayNetwork::get()), id: TreasuryAccount::get().into() }.into();
 	pub RelayTreasuryLocation: Location = (Parent, PalletInstance(rococo_runtime_constants::TREASURY_PALLET_ID)).into();
 }
 
@@ -154,7 +155,7 @@ pub type UniquesConvertedConcreteId =
 type UniquesTransactor = RecreateableInstanceAdapter<
 	AccountId,
 	LocationToAccountId,
-	ManyNonFungibleClasses<UniquesConvertedConcreteId>,
+	InstancesOfClasses<UniquesConvertedConcreteId>,
 	Uniques,
 >;
 
@@ -164,9 +165,9 @@ pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPa
 type NftsTransactor = TransferableInstanceAdapter<
 	AccountId,
 	LocationToAccountId,
-	ManyNonFungibleClasses<NftsConvertedConcreteId>,
+	InstancesOfClasses<NftsConvertedConcreteId>,
 	Nfts,
-	RelayTreasuryLocation,
+	TreasuryLocation,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
