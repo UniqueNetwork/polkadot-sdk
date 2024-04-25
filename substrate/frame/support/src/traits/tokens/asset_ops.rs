@@ -250,8 +250,8 @@ pub mod common_strategies {
 	/// type. The `Flavor` type can also contain additional data (like a byte key) to identify a
 	/// certain byte data.
 	pub struct Bytes<Flavor = ()>(pub Flavor);
-	impl Bytes<()> {
-		pub fn new() -> Self {
+	impl Default for Bytes<()> {
+		fn default() -> Self {
 			Self(())
 		}
 	}
@@ -265,8 +265,8 @@ pub mod common_strategies {
 	/// The `Ownership` [inspect](MetadataInspectStrategy) metadata strategy allows getting the
 	/// owner of an asset.
 	pub struct Ownership<Owner>(PhantomData<Owner>);
-	impl<Owner> Ownership<Owner> {
-		pub fn new() -> Self {
+	impl<Owner> Default for Ownership<Owner> {
+		fn default() -> Self {
 			Self(PhantomData)
 		}
 	}
@@ -286,8 +286,8 @@ pub mod common_strategies {
 	/// The `Flavor` type can add more details to the strategy.
 	/// For instance, "Can **a specific user** create an asset?".
 	pub struct CanCreate<Flavor = ()>(pub Flavor);
-	impl CanCreate<()> {
-		pub fn new() -> Self {
+	impl Default for CanCreate<()> {
+		fn default() -> Self {
 			Self(())
 		}
 	}
@@ -310,8 +310,8 @@ pub mod common_strategies {
 	/// The `Flavor` type can add more details to the strategy.
 	/// For instance, "Can **a specific user** transfer an asset of **another user**?".
 	pub struct CanTransfer<Flavor = ()>(pub Flavor);
-	impl CanTransfer<()> {
-		pub fn new() -> Self {
+	impl Default for CanTransfer<()> {
+		fn default() -> Self {
 			Self(())
 		}
 	}
@@ -334,8 +334,8 @@ pub mod common_strategies {
 	/// The `Flavor` type can add more details to the strategy.
 	/// For instance, "Can **a specific user** destroy an asset of **another user**?".
 	pub struct CanDestroy<Flavor = ()>(pub Flavor);
-	impl CanDestroy<()> {
-		pub fn new() -> Self {
+	impl Default for CanDestroy<()> {
+		fn default() -> Self {
 			Self(())
 		}
 	}
@@ -359,8 +359,8 @@ pub mod common_strategies {
 	/// For instance, "Can **a specific user** update the metadata of an asset **under a certain
 	/// key**?".
 	pub struct CanUpdateMetadata<Flavor = ()>(pub Flavor);
-	impl CanUpdateMetadata<()> {
-		pub fn new() -> Self {
+	impl Default for CanUpdateMetadata<()> {
+		fn default() -> Self {
 			Self(())
 		}
 	}

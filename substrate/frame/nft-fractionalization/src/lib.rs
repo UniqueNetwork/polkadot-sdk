@@ -244,7 +244,7 @@ pub mod pallet {
 			let beneficiary = T::Lookup::lookup(beneficiary)?;
 
 			let nft_owner =
-				T::Nfts::inspect_metadata(&(nft_collection_id, nft_id), Ownership::new())?;
+				T::Nfts::inspect_metadata(&(nft_collection_id, nft_id), Ownership::default())?;
 			ensure!(nft_owner == who, Error::<T>::NoPermission);
 
 			let pallet_account = Self::get_pallet_account();
@@ -343,7 +343,7 @@ pub mod pallet {
 
 		/// Prevent further transferring of NFT.
 		fn do_lock_nft(nft_collection_id: T::NftCollectionId, nft_id: T::NftId) -> DispatchResult {
-			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::new(), false)
+			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::default(), false)
 		}
 
 		/// Remove the transfer lock and transfer the NFT to the account returning the tokens.
@@ -352,7 +352,7 @@ pub mod pallet {
 			nft_id: T::NftId,
 			account: &T::AccountId,
 		) -> DispatchResult {
-			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::new(), true)?;
+			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::default(), true)?;
 			T::Nfts::transfer(&(nft_collection_id, nft_id), JustTo(account))
 		}
 
