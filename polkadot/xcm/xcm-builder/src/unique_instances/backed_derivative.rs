@@ -44,12 +44,17 @@ pub enum DerivativeStatus<ClassId, InstanceId> {
 /// This adapter is meant to be used in non-reserve locations where derivatives
 /// can't be properly destroyed and then recreated.
 ///
-/// For instance, if derivatives are created in an ERC-721 Smart Contract,
-/// we can't recreate them with the same ID. We can only create a derivative with a new ID.
-/// This will waste the active storage since all destroyed instances continue to exist under the
-/// zero account.
+/// For instance, an NFT engine on the chain (a pallet or a smart contract)
+/// can be incapable of recreating an NFT with the same ID.
+/// So, we can only create a derivative with a new ID.
+/// In this context, if we burn a derivative on withdrawal:
+/// 1. we could exhaust the ID space for derivatives
+/// 2. if "burning" means transferring to a special address (like the zero address in EVM),
+/// we also waste the active storage space for burned derivatives
 ///
 /// To avoid that situation, the `StashLocation` is used to hold the withdrawn derivatives.
+///
+/// Also, this adapter can be used in the NFT engine that simply doesn't support burning NFTs.
 pub struct BackedDerivativeInstanceAdapter<
 	AccountId,
 	AccountIdConverter,
