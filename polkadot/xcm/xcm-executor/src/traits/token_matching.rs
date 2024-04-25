@@ -105,3 +105,18 @@ impl<AssetId, Instance> MatchesNonFungibles<AssetId, Instance> for Tuple {
 		Err(Error::AssetNotHandled)
 	}
 }
+
+pub trait MatchesInstance<Id> {
+	fn matches_instance(a: &Asset) -> result::Result<Id, Error>;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<Id> MatchesInstance<Id> for Tuple {
+	fn matches_instance(a: &Asset) -> result::Result<Id, Error> {
+		for_tuples!( #(
+			match Tuple::matches_instance(a) { o @ Ok(_) => return o, _ => () }
+		)* );
+		tracing::trace!(target: "xcm::matches_instance", asset = ?a, "did not match an asset instance");
+		Err(Error::AssetNotHandled)
+	}
+}
