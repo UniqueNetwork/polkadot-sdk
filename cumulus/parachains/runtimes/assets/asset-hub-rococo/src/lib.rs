@@ -877,6 +877,12 @@ impl pallet_nfts::Config for Runtime {
 	type Helper = ();
 }
 
+impl pallet_xnft::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type DerivativeId = (CollectionId, ItemId);
+	type DerivativeIdSource = CollectionId;
+}
+
 /// XCM router instance to BridgeHub with bridging capabilities for `Westend` global
 /// consensus with dynamic fees and back-pressure.
 pub type ToWestendXcmRouterInstance = pallet_xcm_bridge_hub_router::Instance3;
@@ -936,6 +942,7 @@ construct_runtime!(
 		PolkadotXcm: pallet_xcm = 31,
 		CumulusXcm: cumulus_pallet_xcm = 32,
 		MessageQueue: pallet_message_queue = 34,
+		Xnft: pallet_xnft = 35,
 
 		// Handy utilities.
 		Utility: pallet_utility = 40,

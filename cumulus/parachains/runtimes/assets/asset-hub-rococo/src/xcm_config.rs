@@ -50,7 +50,8 @@ use testnet_parachains_constants::rococo::snowbridge::{
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
-		RestoreOnCreate, SimpleStash, StashOnDestroy, UniqueInstancesAdapter, UniqueInstancesOps,
+		RegisterDerivativeId, RestoreOnCreate, SimpleStash, StashOnDestroy,
+		UniqueDerivedInstancesAdapter, UniqueInstancesAdapter, UniqueInstancesOps,
 	},
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
@@ -173,6 +174,12 @@ type NftsTransactor = UniqueInstancesAdapter<
 	MatchInClassInstances<NftsConvertedConcreteId>,
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
+
+// type DerivativesRegistrar = UniqueDerivedInstancesAdapter<
+// 	AccountId,
+// 	LocationToAccountId,
+// 	RegisterDerivativeId<>
+// >
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
