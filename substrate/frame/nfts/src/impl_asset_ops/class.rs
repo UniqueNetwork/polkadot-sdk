@@ -180,11 +180,11 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::Account
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	Create<Class, Adminable<'a, AutoId<T::CollectionId>, T::AccountId, CollectionConfigFor<T, I>>>
+	Create<Class, Adminable<'a, T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
 	for Pallet<T, I>
 {
 	fn create(
-		strategy: Adminable<AutoId<T::CollectionId>, T::AccountId, CollectionConfigFor<T, I>>,
+		strategy: Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 	) -> Result<T::CollectionId, DispatchError> {
 		let Adminable { owner, admin, config, .. } = strategy;
 
@@ -212,14 +212,14 @@ impl<'a, T: Config<I>, I: 'static>
 		Class,
 		WithOrigin<
 			T::RuntimeOrigin,
-			Adminable<'a, AutoId<T::CollectionId>, T::AccountId, CollectionConfigFor<T, I>>,
+			Adminable<'a, T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 		>,
 	> for Pallet<T, I>
 {
 	fn create(
 		strategy: WithOrigin<
 			T::RuntimeOrigin,
-			Adminable<AutoId<T::CollectionId>, T::AccountId, CollectionConfigFor<T, I>>,
+			Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 		>,
 	) -> Result<T::CollectionId, DispatchError> {
 		let WithOrigin(origin, creation_strategy @ Adminable { owner, config, .. }) = strategy;

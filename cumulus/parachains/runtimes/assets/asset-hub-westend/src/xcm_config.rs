@@ -45,13 +45,16 @@ use polkadot_runtime_common::xcm_sender::ExponentialPrice;
 use sp_runtime::traits::{AccountIdConversion, ConvertInto};
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	unique_instances::UniqueInstancesAdapter, AccountId32Aliases, AllowExplicitUnpaidExecutionFrom,
-	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry, DescribeFamily,
-	DescribePalletTerminal, EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter,
-	FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete,
-	LocalMint, MatchInClassInstances, NetworkExportTableItem, NoChecking, ParentAsSuperuser,
-	ParentIsPreset, RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia,
+	unique_instances::{
+		RestoreOnCreate, SimpleStash, StashOnDestroy, UniqueInstancesAdapter, UniqueInstancesOps,
+	},
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
+	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	DenyReserveTransferToRelayChain, DenyThenTry, DescribeFamily, DescribePalletTerminal,
+	EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter,
+	GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete, LocalMint,
+	MatchInClassInstances, NetworkExportTableItem, NoChecking, ParentAsSuperuser, ParentIsPreset,
+	RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, StartsWith,
 	StartsWithExplicitGlobalConsensus, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
 	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
@@ -155,13 +158,14 @@ pub type UniquesTransactor = UniqueInstancesAdapter<
 /// Matcher for converting `ClassId`/`InstanceId` into a nfts asset.
 pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPalletLocation>;
 
+type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
+
 /// Means for transacting nft assets.
-type NftsTransactor = TransferableInstanceAdapter<
+type NftsTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
-	InstancesOfClasses<NftsConvertedConcreteId>,
-	Nfts,
-	TreasuryLocation,
+	MatchInClassInstances<NftsConvertedConcreteId>,
+	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
