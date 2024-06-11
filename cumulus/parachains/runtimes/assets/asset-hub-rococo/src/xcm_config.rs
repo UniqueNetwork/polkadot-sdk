@@ -49,12 +49,12 @@ use testnet_parachains_constants::rococo::snowbridge::{
 };
 use xcm::latest::{prelude::*, ROCOCO_GENESIS_HASH, WESTEND_GENESIS_HASH};
 use xcm_builder::{
-	AccountId32Aliases, AliasChildLocation, AllowExplicitUnpaidExecutionFrom,
+	unique_instances::UniqueInstancesAdapter, AccountId32Aliases, AliasChildLocation, AllowExplicitUnpaidExecutionFrom,
 	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry,
 	DescribeAllTerminal, DescribeFamily, EnsureXcmOrigin, FrameTransactionalProcessor,
 	FungibleAdapter, FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription,
-	IsConcrete, LocalMint, MatchedConvertedConcreteId, NetworkExportTableItem, NoChecking,
+	IsConcrete, LocalMint, MatchInClassInstances, MatchedConvertedConcreteId, NetworkExportTableItem, NoChecking,
 	NonFungiblesAdapter, ParentAsSuperuser, ParentIsPreset, RelayChainAsNative,
 	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
 	SignedAccountId32AsNative, SignedToAccountId32, SingleAssetExchangeAdapter,
@@ -148,10 +148,10 @@ pub type UniquesConvertedConcreteId =
 	assets_common::UniquesConvertedConcreteId<UniquesPalletLocation>;
 
 /// Means for transacting unique assets.
-pub type UniquesTransactor = RecreateableInstanceAdapter<
+pub type UniquesTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
-	InstancesOfClasses<UniquesConvertedConcreteId>,
+	MatchInClassInstances<UniquesConvertedConcreteId>,
 	Uniques,
 >;
 
