@@ -249,6 +249,25 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
+impl<'a, T: Config<I>, I: 'static>
+	Create<Class, Owned<'a, T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
+	for Pallet<T, I>
+{
+	fn create(
+		strategy: Owned<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
+	) -> Result<T::CollectionId, DispatchError> {
+		let Owned { owner, id_assignment, config, .. } = strategy;
+		let admin = owner;
+
+		<Self as Create<_, _>>::create(Adminable::new_configured(
+			owner,
+			admin,
+			id_assignment,
+			config,
+		))
+	}
+}
+
 impl<'a, T: Config<I>, I: 'static> Destroy<Class, WithWitness<'a, DestroyWitness>>
 	for Pallet<T, I>
 {
