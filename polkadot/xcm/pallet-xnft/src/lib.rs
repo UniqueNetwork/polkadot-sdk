@@ -285,3 +285,59 @@ where
 		Ok(derivative_id)
 	}
 }
+
+pub trait CompositeDerivativeId {
+	type Prefix: Member + Parameter + MaxEncodedLen;
+	type Suffix: Member + Parameter + MaxEncodedLen;
+
+	fn compose(prefix: Self::Prefix, suffix: Self::Suffix) -> Self;
+}
+
+impl<ClassId, InClassInstanceId> CompositeDerivativeId for (ClassId, InClassInstanceId)
+where
+	ClassId: Member + Parameter + MaxEncodedLen,
+	InClassInstanceId: Member + Parameter + MaxEncodedLen,
+{
+	type Prefix = ClassId;
+	type Suffix = InClassInstanceId;
+
+	fn compose(prefix: Self::Prefix, suffix: Self::Suffix) -> Self {
+		(prefix, suffix)
+	}
+}
+
+pub struct ConcatIncrementableIdOnCreate<XnftPallet, CreateOp>(PhantomData<(XnftPallet, CreateOp)>);
+impl<'a, T, I, CreateOp>
+	Create<
+		Instance,
+		Owned<'a, T::AccountId, DeriveAndReportId<'a, T::DerivativeClassId, T::DerivativeId>>,
+	> for ConcatIncrementableIdOnCreate<Pallet<T, I>, CreateOp>
+where
+	T: Config<I>,
+	I: 'static,
+	T::DerivativeId: CompositeDerivativeId<Prefix = T::DerivativeClassId>,
+	<T::DerivativeId as CompositeDerivativeId>::Suffix: Incrementable,
+	CreateOp: for<'b> Create<Instance, Owned<'b, T::AccountId, AssignId<'b, T::DerivativeId>>>,
+{
+	fn create(
+		strategy: Owned<T::AccountId, DeriveAndReportId<T::DerivativeClassId, T::DerivativeId>>,
+	) -> Result<T::DerivativeId, DispatchError> {
+		let Owned { owner, id_assignment: DeriveAndReportId(class_id, ..), .. } = strategy;
+
+		let instance_id_suffix = <NextInClassInstanceIdSuffix<T, I>>::get(class_id)
+			.or(<T::DerivativeId as CompositeDerivativeId>::Suffix::initial_value())
+			.ok_or(<Error<T, I>>::CantSetNextInstanceIdSuffix)?;
+
+		let next_instance_id_suffix = instance_id_suffix
+			.increment()
+			.ok_or(<Error<T, I>>::CantSetNextInstanceIdSuffix)?;
+
+		let derivative_id = T::DerivativeId::compose(class_id.clone(), instance_id_suffix);
+
+		CreateOp::create(Owned::new(owner, AssignId(&derivative_id)))?;
+
+		<NextInClassInstanceIdSuffix<T, I>>::insert(class_id, next_instance_id_suffix);
+
+		Ok(derivative_id)
+	}
+}

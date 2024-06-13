@@ -18,7 +18,7 @@ use super::{
 	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, Nfts, ParachainInfo,
 	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
 	ToWestendXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue,
+	XcmpQueue, Xnft,
 };
 use assets_common::{
 	matching::{FromNetwork, FromSiblingParachain, IsForeignConcreteAsset},
@@ -27,23 +27,28 @@ use assets_common::{
 use frame_support::{
 	parameter_types,
 	traits::{
-		tokens::imbalance::{ResolveAssetTo, ResolveTo},
-		ConstU32, Contains, Equals, Everything, Nothing, PalletInfoAccess,
+		tokens::{
+			asset_ops::common_strategies::{AssignId, AutoId},
+			imbalance::{ResolveAssetTo, ResolveTo},
+		},
+		ConstU32, Contains, Equals, Everything, MapSuccess, Nothing, PalletInfoAccess,
 	},
 };
 use frame_system::EnsureRoot;
+use pallet_nfts::CollectionConfigFor;
 use pallet_xcm::XcmPassthrough;
+use pallet_xnft::{ConcatIncrementableIdOnCreate, MatchRegisteredForeignAssets};
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
 		ConcreteAssetFromSystem, ParentRelayOrSiblingParachains, RelayOrOtherSystemParachains,
 	},
-	TREASURY_PALLET_ID,
+	CollectionId, ItemId, TREASURY_PALLET_ID,
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
 use snowbridge_router_primitives::inbound::GlobalConsensusEthereumConvertsFor;
-use sp_runtime::traits::{AccountIdConversion, ConvertInto};
+use sp_runtime::traits::{AccountIdConversion, ConvertInto, Replace};
 use testnet_parachains_constants::rococo::snowbridge::{
 	EthereumNetwork, INBOUND_QUEUE_PALLET_INDEX,
 };
@@ -178,8 +183,10 @@ type NftsTransactor = UniqueInstancesAdapter<
 // type DerivativesRegistrar = UniqueDerivedInstancesAdapter<
 // 	AccountId,
 // 	LocationToAccountId,
-// 	RegisterDerivativeId<>
-// >
+// 	AssignId<RegisterDerivativeId<CollectionId>>,
+// 	MatchRegisteredForeignAssets<Xnft>,
+// 	ConcatIncrementableIdOnCreate<Xnft, Nfts>,
+// >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
@@ -507,6 +514,20 @@ impl pallet_xcm::Config for Runtime {
 impl cumulus_pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
+impl pallet_xnft::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+
+	type DerivativeClassId = CollectionId;
+	type DerivativeId = (CollectionId, ItemId);
+
+	type DerivativeClassRegistrar = MapSuccess<EnsureRoot<AccountId>, Replace<TreasuryAccount>>;
+
+	type ClassCreator = Nfts;
+	type NewClassIdAssignment = AutoId<CollectionId>;
+	type NewClassConfig = CollectionConfigFor<Self>;
+	type NewClassWitness = ();
 }
 
 pub type ForeignCreatorsSovereignAccountOf = (
