@@ -932,6 +932,7 @@ construct_runtime!(
 		// Bridge utilities.
 		ToRococoXcmRouter: pallet_xcm_bridge_hub_router::<Instance1> = 34,
 		MessageQueue: pallet_message_queue = 35,
+		Xnft: pallet_xnft = 36,
 
 		// Handy utilities.
 		Utility: pallet_utility = 40,

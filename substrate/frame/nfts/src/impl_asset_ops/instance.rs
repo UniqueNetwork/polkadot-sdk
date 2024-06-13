@@ -176,7 +176,7 @@ impl<'a, T: Config<I>, I: 'static>
 {
 	fn update_metadata(
 		(collection, item): &Self::Id,
-		bytes: Bytes<CustomAttribute<'a, T::AccountId>>,
+		bytes: Bytes<CustomAttribute<T::AccountId>>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
 		let Bytes(CustomAttribute(account, attribute)) = bytes;
@@ -199,7 +199,7 @@ impl<'a, T: Config<I>, I: 'static>
 {
 	fn update_metadata(
 		(collection, item): &Self::Id,
-		strategy: WithOrigin<T::RuntimeOrigin, Bytes<CustomAttribute<'a, T::AccountId>>>,
+		strategy: WithOrigin<T::RuntimeOrigin, Bytes<CustomAttribute<T::AccountId>>>,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
 		let WithOrigin(origin, Bytes(CustomAttribute(account, attribute))) = strategy;
@@ -232,7 +232,7 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Instance, Bytes<SystemAttribu
 {
 	fn inspect_metadata(
 		(collection, item): &Self::Id,
-		bytes: Bytes<SystemAttribute<'a>>,
+		bytes: Bytes<SystemAttribute>,
 	) -> Result<Vec<u8>, DispatchError> {
 		let namespace = AttributeNamespace::Pallet;
 
@@ -318,26 +318,23 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
-	Create<Instance, Owned<'a, T::AccountId, AssignId<'a, (T::CollectionId, T::ItemId)>>>
-	for Pallet<T, I>
+impl<T: Config<I>, I: 'static>
+	Create<Instance, Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>>> for Pallet<T, I>
 {
 	fn create(
 		strategy: Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>>,
 	) -> DispatchResult {
 		let Owned { owner: mint_to, id_assignment: AssignId((collection, item)), .. } = strategy;
 
-		let item_config = ItemConfig { settings: Self::get_default_item_settings(collection)? };
+		let item_config = ItemConfig { settings: Self::get_default_item_settings(&collection)? };
 
-		Self::do_mint(*collection, *item, None, mint_to.clone(), item_config, |_, _| Ok(()))
+		Self::do_mint(collection, item, None, mint_to, item_config, |_, _| Ok(()))
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
-	Create<
-		Instance,
-		Owned<'a, T::AccountId, AssignId<'a, (T::CollectionId, T::ItemId)>, ItemConfig>,
-	> for Pallet<T, I>
+impl<T: Config<I>, I: 'static>
+	Create<Instance, Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>, ItemConfig>>
+	for Pallet<T, I>
 {
 	fn create(
 		strategy: Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>, ItemConfig>,
@@ -349,20 +346,20 @@ impl<'a, T: Config<I>, I: 'static>
 			..
 		} = strategy;
 
-		Self::do_mint(*collection, *item, None, mint_to.clone(), *item_config, |_, _| Ok(()))
+		Self::do_mint(collection, item, None, mint_to, item_config, |_, _| Ok(()))
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Transfer<Instance, JustDo<'a, T::AccountId>> for Pallet<T, I> {
+impl<T: Config<I>, I: 'static> Transfer<Instance, JustDo<T::AccountId>> for Pallet<T, I> {
 	fn transfer((collection, item): &Self::Id, strategy: JustDo<T::AccountId>) -> DispatchResult {
 		let JustDo(to) = strategy;
 
-		Self::do_transfer(*collection, *item, to.clone(), |_, _| Ok(()))
+		Self::do_transfer(*collection, *item, to, |_, _| Ok(()))
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
-	Transfer<Instance, WithOrigin<T::RuntimeOrigin, JustDo<'a, T::AccountId>>> for Pallet<T, I>
+impl<T: Config<I>, I: 'static>
+	Transfer<Instance, WithOrigin<T::RuntimeOrigin, JustDo<T::AccountId>>> for Pallet<T, I>
 {
 	fn transfer(
 		(collection, item): &Self::Id,
@@ -372,7 +369,7 @@ impl<'a, T: Config<I>, I: 'static>
 
 		let signer = ensure_signed(origin)?;
 
-		Self::do_transfer(*collection, *item, to.clone(), |_, details| {
+		Self::do_transfer(*collection, *item, to, |_, details| {
 			if details.owner != signer {
 				let deadline = details.approvals.get(&signer).ok_or(Error::<T, I>::NoPermission)?;
 				if let Some(d) = deadline {
@@ -385,45 +382,42 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Transfer<Instance, FromTo<'a, T::AccountId>> for Pallet<T, I> {
+impl<T: Config<I>, I: 'static> Transfer<Instance, FromTo<T::AccountId>> for Pallet<T, I> {
 	fn transfer(
 		(collection, item): &Self::Id,
 		FromTo(from, to): FromTo<T::AccountId>,
 	) -> DispatchResult {
-		Self::do_transfer(*collection, *item, to.clone(), |_, details| {
-			ensure!(details.owner == *from, Error::<T, I>::NoPermission);
+		Self::do_transfer(*collection, *item, to, |_, details| {
+			ensure!(details.owner == from, Error::<T, I>::NoPermission);
 			Ok(())
 		})
 	}
 }
 
-impl<T: Config<I>, I: 'static> Destroy<Instance, JustDo<'_>> for Pallet<T, I> {
-	fn destroy((collection, item): &Self::Id, _force_destroy: JustDo<'_>) -> DispatchResult {
+impl<T: Config<I>, I: 'static> Destroy<Instance, JustDo> for Pallet<T, I> {
+	fn destroy((collection, item): &Self::Id, _force_destroy: JustDo) -> DispatchResult {
 		Self::do_burn(*collection, *item, |_details| Ok(()))
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Destroy<Instance, IfOwnedBy<'a, T::AccountId>> for Pallet<T, I> {
-	fn destroy(
-		(collection, item): &Self::Id,
-		strategy: IfOwnedBy<'a, T::AccountId>,
-	) -> DispatchResult {
+impl<T: Config<I>, I: 'static> Destroy<Instance, IfOwnedBy<T::AccountId>> for Pallet<T, I> {
+	fn destroy((collection, item): &Self::Id, strategy: IfOwnedBy<T::AccountId>) -> DispatchResult {
 		let IfOwnedBy(account) = strategy;
 
 		Self::do_burn(*collection, *item, |details| {
-			ensure!(details.owner == *account, Error::<T, I>::NoPermission);
+			ensure!(details.owner == account, Error::<T, I>::NoPermission);
 
 			Ok(())
 		})
 	}
 }
 
-impl<T: Config<I>, I: 'static> Destroy<Instance, WithOrigin<T::RuntimeOrigin, JustDo<'_>>>
+impl<T: Config<I>, I: 'static> Destroy<Instance, WithOrigin<T::RuntimeOrigin, JustDo>>
 	for Pallet<T, I>
 {
 	fn destroy(
 		(collection, item): &Self::Id,
-		strategy: WithOrigin<T::RuntimeOrigin, JustDo<'_>>,
+		strategy: WithOrigin<T::RuntimeOrigin, JustDo>,
 	) -> DispatchResult {
 		let WithOrigin(origin, _force_destroy) = strategy;
 

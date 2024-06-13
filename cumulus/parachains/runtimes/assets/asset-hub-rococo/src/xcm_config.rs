@@ -55,7 +55,7 @@ use testnet_parachains_constants::rococo::snowbridge::{
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
-		RegisterDerivativeId, RestoreOnCreate, SimpleStash, StashOnDestroy,
+		RegisterDerivativeId, RegisterOnCreate, RestoreOnCreate, SimpleStash, StashOnDestroy,
 		UniqueDerivedInstancesAdapter, UniqueInstancesAdapter, UniqueInstancesOps,
 	},
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
@@ -180,13 +180,13 @@ type NftsTransactor = UniqueInstancesAdapter<
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
 
-// type DerivativesRegistrar = UniqueDerivedInstancesAdapter<
-// 	AccountId,
-// 	LocationToAccountId,
-// 	AssignId<RegisterDerivativeId<CollectionId>>,
-// 	MatchRegisteredForeignAssets<Xnft>,
-// 	ConcatIncrementableIdOnCreate<Xnft, Nfts>,
-// >;
+type NftDerivativesRegistrar = UniqueDerivedInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	AssignId<RegisterDerivativeId<CollectionId>>,
+	MatchRegisteredForeignAssets<Xnft>,
+	RegisterOnCreate<Xnft, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
+>;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
@@ -249,6 +249,7 @@ pub type AssetTransactors = (
 	PoolFungiblesTransactor,
 	UniquesTransactor,
 	NftsTransactor,
+	NftDerivativesRegistrar,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -524,10 +525,10 @@ impl pallet_xnft::Config for Runtime {
 
 	type DerivativeClassRegistrar = MapSuccess<EnsureRoot<AccountId>, Replace<TreasuryAccount>>;
 
-	type ClassCreator = Nfts;
 	type NewClassIdAssignment = AutoId<CollectionId>;
 	type NewClassConfig = CollectionConfigFor<Self>;
 	type NewClassWitness = ();
+	type NewClassCreator = Nfts;
 }
 
 pub type ForeignCreatorsSovereignAccountOf = (

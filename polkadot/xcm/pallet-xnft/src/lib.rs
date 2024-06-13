@@ -307,24 +307,29 @@ where
 }
 
 pub struct ConcatIncrementableIdOnCreate<XnftPallet, CreateOp>(PhantomData<(XnftPallet, CreateOp)>);
-impl<'a, T, I, CreateOp>
-	Create<
-		Instance,
-		Owned<'a, T::AccountId, DeriveAndReportId<'a, T::DerivativeClassId, T::DerivativeId>>,
-	> for ConcatIncrementableIdOnCreate<Pallet<T, I>, CreateOp>
+impl<XnftPallet, CreateOp> AssetDefinition<Instance>
+	for ConcatIncrementableIdOnCreate<XnftPallet, CreateOp>
+where
+	CreateOp: AssetDefinition<Instance>,
+{
+	type Id = CreateOp::Id;
+}
+impl<T, I, CreateOp>
+	Create<Instance, Owned<T::AccountId, DeriveAndReportId<T::DerivativeClassId, T::DerivativeId>>>
+	for ConcatIncrementableIdOnCreate<Pallet<T, I>, CreateOp>
 where
 	T: Config<I>,
 	I: 'static,
 	T::DerivativeId: CompositeDerivativeId<Prefix = T::DerivativeClassId>,
 	<T::DerivativeId as CompositeDerivativeId>::Suffix: Incrementable,
-	CreateOp: for<'b> Create<Instance, Owned<'b, T::AccountId, AssignId<'b, T::DerivativeId>>>,
+	CreateOp: Create<Instance, Owned<T::AccountId, AssignId<T::DerivativeId>>>,
 {
 	fn create(
 		strategy: Owned<T::AccountId, DeriveAndReportId<T::DerivativeClassId, T::DerivativeId>>,
 	) -> Result<T::DerivativeId, DispatchError> {
 		let Owned { owner, id_assignment: DeriveAndReportId(class_id, ..), .. } = strategy;
 
-		let instance_id_suffix = <NextInClassInstanceIdSuffix<T, I>>::get(class_id)
+		let instance_id_suffix = <NextInClassInstanceIdSuffix<T, I>>::get(&class_id)
 			.or(<T::DerivativeId as CompositeDerivativeId>::Suffix::initial_value())
 			.ok_or(<Error<T, I>>::CantSetNextInstanceIdSuffix)?;
 
@@ -334,7 +339,7 @@ where
 
 		let derivative_id = T::DerivativeId::compose(class_id.clone(), instance_id_suffix);
 
-		CreateOp::create(Owned::new(owner, AssignId(&derivative_id)))?;
+		CreateOp::create(Owned::new(owner, AssignId(derivative_id.clone())))?;
 
 		<NextInClassInstanceIdSuffix<T, I>>::insert(class_id, next_instance_id_suffix);
 

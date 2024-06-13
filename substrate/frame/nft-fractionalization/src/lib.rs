@@ -134,7 +134,7 @@ pub mod pallet {
 		type Nfts: AssetDefinition<Instance, Id = (Self::NftCollectionId, Self::NftId)>
 			+ InspectMetadata<Instance, Ownership<Self::AccountId>>
 			+ UpdateMetadata<Instance, CanTransfer>
-			+ for<'a> Transfer<Instance, JustDo<'a, Self::AccountId>>;
+			+ Transfer<Instance, JustDo<Self::AccountId>>;
 
 		/// The pallet's id, used for deriving its sovereign account ID.
 		#[pallet::constant]
@@ -353,7 +353,7 @@ pub mod pallet {
 			account: &T::AccountId,
 		) -> DispatchResult {
 			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::default(), true)?;
-			T::Nfts::transfer(&(nft_collection_id, nft_id), JustDo(account))
+			T::Nfts::transfer(&(nft_collection_id, nft_id), JustDo(account.clone()))
 		}
 
 		/// Create the new asset.

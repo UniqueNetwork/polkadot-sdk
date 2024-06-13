@@ -971,6 +971,7 @@ dependencies = [
  "pallet-xcm",
  "pallet-xcm-benchmarks",
  "pallet-xcm-bridge-hub-router",
+ "pallet-xnft",
  "parachains-common",
  "parity-scale-codec",
  "polkadot-parachain-primitives",

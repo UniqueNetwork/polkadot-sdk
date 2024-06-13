@@ -179,8 +179,8 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::Account
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
-	Create<Class, Adminable<'a, T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
+impl<T: Config<I>, I: 'static>
+	Create<Class, Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
 	for Pallet<T, I>
 {
 	fn create(
@@ -196,9 +196,9 @@ impl<'a, T: Config<I>, I: 'static>
 			collection,
 			owner.clone(),
 			admin.clone(),
-			*config,
+			config,
 			T::CollectionDeposit::get(),
-			Event::Created { collection, creator: owner.clone(), owner: admin.clone() },
+			Event::Created { collection, creator: owner, owner: admin },
 		)?;
 
 		Self::set_next_collection_id(collection);
@@ -207,12 +207,12 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
+impl<T: Config<I>, I: 'static>
 	Create<
 		Class,
 		WithOrigin<
 			T::RuntimeOrigin,
-			Adminable<'a, T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
+			Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 		>,
 	> for Pallet<T, I>
 {
@@ -222,7 +222,8 @@ impl<'a, T: Config<I>, I: 'static>
 			Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 		>,
 	) -> Result<T::CollectionId, DispatchError> {
-		let WithOrigin(origin, creation_strategy @ Adminable { owner, config, .. }) = strategy;
+		let WithOrigin(origin, creation_strategy) = strategy;
+		let Adminable { owner, config, .. } = &creation_strategy;
 
 		let collection = NextCollectionId::<T, I>::get()
 			.or(T::CollectionId::initial_value())
@@ -249,15 +250,15 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
-	Create<Class, Owned<'a, T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
+impl<T: Config<I>, I: 'static>
+	Create<Class, Owned<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
 	for Pallet<T, I>
 {
 	fn create(
 		strategy: Owned<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 	) -> Result<T::CollectionId, DispatchError> {
 		let Owned { owner, id_assignment, config, .. } = strategy;
-		let admin = owner;
+		let admin = owner.clone();
 
 		<Self as Create<_, _>>::create(Adminable::new_configured(
 			owner,
@@ -268,25 +269,23 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> Destroy<Class, WithWitness<'a, DestroyWitness>>
-	for Pallet<T, I>
-{
+impl<T: Config<I>, I: 'static> Destroy<Class, WithWitness<DestroyWitness>> for Pallet<T, I> {
 	fn destroy(
 		collection: &Self::Id,
-		strategy: WithWitness<'a, DestroyWitness>,
+		strategy: WithWitness<DestroyWitness>,
 	) -> Result<DestroyWitness, DispatchError> {
 		let WithWitness(witness) = strategy;
 
-		Self::do_destroy_collection(*collection, *witness, None)
+		Self::do_destroy_collection(*collection, witness, None)
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static>
-	Destroy<Class, WithOrigin<T::RuntimeOrigin, WithWitness<'a, DestroyWitness>>> for Pallet<T, I>
+impl<T: Config<I>, I: 'static>
+	Destroy<Class, WithOrigin<T::RuntimeOrigin, WithWitness<DestroyWitness>>> for Pallet<T, I>
 {
 	fn destroy(
 		collection: &Self::Id,
-		strategy: WithOrigin<T::RuntimeOrigin, WithWitness<'a, DestroyWitness>>,
+		strategy: WithOrigin<T::RuntimeOrigin, WithWitness<DestroyWitness>>,
 	) -> Result<DestroyWitness, DispatchError> {
 		let WithOrigin(origin, WithWitness(witness)) = strategy;
 
@@ -294,6 +293,6 @@ impl<'a, T: Config<I>, I: 'static>
 			.map(|_| None)
 			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
 
-		Self::do_destroy_collection(*collection, *witness, maybe_check_owner)
+		Self::do_destroy_collection(*collection, witness, maybe_check_owner)
 	}
 }
