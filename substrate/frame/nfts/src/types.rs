@@ -69,7 +69,7 @@ pub(super) type ItemTipOf<T, I = ()> = ItemTip<
 	BalanceOf<T, I>,
 >;
 /// A type alias for the settings configuration of a collection.
-pub(super) type CollectionConfigFor<T, I = ()> =
+pub type CollectionConfigFor<T, I = ()> =
 	CollectionConfig<BalanceOf<T, I>, BlockNumberFor<T>, <T as Config<I>>::CollectionId>;
 /// A type alias for the pre-signed minting configuration for a specified collection.
 pub(super) type PreSignedMintOf<T, I = ()> = PreSignedMint<
@@ -361,7 +361,7 @@ pub enum PalletAttributes<CollectionId> {
 
 /// Collection's configuration.
 #[derive(
-	Clone, Copy, Decode, Default, Encode, MaxEncodedLen, PartialEq, RuntimeDebug, TypeInfo,
+	Clone, Copy, Decode, Default, Encode, MaxEncodedLen, PartialEq, Eq, RuntimeDebug, TypeInfo,
 )]
 pub struct CollectionConfig<Price, BlockNumber, CollectionId> {
 	/// Collection's settings.
