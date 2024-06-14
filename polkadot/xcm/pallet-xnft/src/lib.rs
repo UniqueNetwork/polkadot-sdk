@@ -286,9 +286,9 @@ where
 	}
 }
 
-pub struct MatchRegisteredDerivativeInstances<XnftPallet>(PhantomData<XnftPallet>);
+pub struct MatchDerivativeInstances<XnftPallet>(PhantomData<XnftPallet>);
 impl<T: Config<I>, I: 'static> MatchesInstance<T::DerivativeId>
-	for MatchRegisteredDerivativeInstances<Pallet<T, I>>
+	for MatchDerivativeInstances<Pallet<T, I>>
 {
 	fn matches_instance(asset: &Asset) -> Result<T::DerivativeId, ExecutorError> {
 		match asset.fun {
@@ -301,6 +301,22 @@ impl<T: Config<I>, I: 'static> MatchesInstance<T::DerivativeId>
 			},
 			Fungibility::Fungible(_) => Err(ExecutorError::AssetNotHandled),
 		}
+	}
+}
+
+pub struct EnsureNotDerivativeInstance<XnftPallet, Matcher>(PhantomData<(XnftPallet, Matcher)>);
+impl<T: Config<I>, I: 'static, Matcher: MatchesInstance<T::DerivativeId>>
+	MatchesInstance<T::DerivativeId> for EnsureNotDerivativeInstance<Pallet<T, I>, Matcher>
+{
+	fn matches_instance(asset: &Asset) -> Result<T::DerivativeId, ExecutorError> {
+		let instance_id = Matcher::matches_instance(asset)?;
+
+		ensure!(
+			!<DerivativeIdToForeignNft<T, I>>::contains_key(&instance_id),
+			ExecutorError::AssetNotHandled,
+		);
+
+		Ok(instance_id)
 	}
 }
 
