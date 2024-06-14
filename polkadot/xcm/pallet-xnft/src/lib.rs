@@ -286,6 +286,24 @@ where
 	}
 }
 
+pub struct MatchRegisteredDerivativeInstances<XnftPallet>(PhantomData<XnftPallet>);
+impl<T: Config<I>, I: 'static> MatchesInstance<T::DerivativeId>
+	for MatchRegisteredDerivativeInstances<Pallet<T, I>>
+{
+	fn matches_instance(asset: &Asset) -> Result<T::DerivativeId, ExecutorError> {
+		match asset.fun {
+			Fungibility::NonFungible(asset_instance) => {
+				let nonfungible_asset =
+					NonFungibleAsset { id: asset.id.clone(), instance: asset_instance };
+
+				<ForeignNftToDerivativeId<T, I>>::get(nonfungible_asset)
+					.ok_or(ExecutorError::AssetNotHandled)
+			},
+			Fungibility::Fungible(_) => Err(ExecutorError::AssetNotHandled),
+		}
+	}
+}
+
 pub trait CompositeDerivativeId {
 	type Prefix: Member + Parameter + MaxEncodedLen;
 	type Suffix: Member + Parameter + MaxEncodedLen;

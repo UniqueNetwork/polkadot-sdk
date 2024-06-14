@@ -37,7 +37,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_nfts::CollectionConfigFor;
 use pallet_xcm::XcmPassthrough;
-use pallet_xnft::{ConcatIncrementableIdOnCreate, MatchRegisteredForeignAssets};
+use pallet_xnft::{ConcatIncrementableIdOnCreate, MatchRegisteredForeignAssets, MatchRegisteredDerivativeInstances};
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
@@ -170,7 +170,7 @@ type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
 type NftsTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
-	MatchInClassInstances<NftsConvertedConcreteId>,
+	(MatchInClassInstances<NftsConvertedConcreteId>, MatchRegisteredDerivativeInstances<Xnft>),
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
 
