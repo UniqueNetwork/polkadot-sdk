@@ -87,6 +87,15 @@ pub mod pallet {
 		DerivativeIdOf<T, I>,
 		OptionQuery,
 	>;
+	pub type ForeignNftToDerivativeId<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
+		_,
+		Blake2_128,
+		AssetId,
+		Blake2_128,
+		AssetInstance,
+		DerivativeIdOf<T, I>,
+		OptionQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn derivative_id_to_foreign_nft)]

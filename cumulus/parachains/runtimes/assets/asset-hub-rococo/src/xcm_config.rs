@@ -37,9 +37,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_nfts::CollectionConfigFor;
 use pallet_xcm::XcmPassthrough;
-use pallet_xnft::{
-	ConcatIncrementableIdOnCreate, EnsureNotDerivativeInstance, MatchRegisteredForeignAssets, MatchDerivativeInstances,
-};
+use pallet_xnft::{ConcatIncrementableIdOnCreate, DerivativeClasses, DerivativeInstances};
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
@@ -57,6 +55,7 @@ use testnet_parachains_constants::rococo::snowbridge::{
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
+		EnsureNotDerivativeInstance, MatchDerivativeIdSources, MatchDerivativeInstances,
 		RegisterDerivativeId, RegisterOnCreate, RestoreOnCreate, SimpleStash, StashOnDestroy,
 		UniqueDerivedInstancesAdapter, UniqueInstancesAdapter, UniqueInstancesOps,
 	},
@@ -174,13 +173,16 @@ pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPa
 
 type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
 
+type DerivativeCollections = DerivativeClasses<Xnft>;
+type DerivativeNfts = DerivativeInstances<Xnft>;
+
 // Means for transacting nft assets.
 type NftsTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	(
-		EnsureNotDerivativeInstance<Xnft, MatchInClassInstances<NftsConvertedConcreteId>>,
-		MatchDerivativeInstances<Xnft>,
+		EnsureNotDerivativeInstance<DerivativeNfts, MatchInClassInstances<NftsConvertedConcreteId>>,
+		MatchDerivativeInstances<DerivativeNfts>,
 	),
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
@@ -189,8 +191,8 @@ type NftDerivativesRegistrar = UniqueDerivedInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	AssignId<RegisterDerivativeId<CollectionId>>,
-	MatchRegisteredForeignAssets<Xnft>,
-	RegisterOnCreate<Xnft, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
+	MatchDerivativeIdSources<DerivativeCollections>,
+	RegisterOnCreate<DerivativeNfts, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
