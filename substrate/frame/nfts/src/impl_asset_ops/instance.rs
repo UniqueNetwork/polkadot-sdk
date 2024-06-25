@@ -319,34 +319,35 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 }
 
 impl<T: Config<I>, I: 'static>
-	Create<Instance, Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>>> for Pallet<T, I>
+	Create<Instance, Owned<T::AccountId, PredefinedId<(T::CollectionId, T::ItemId)>>> for Pallet<T, I>
 {
 	fn create(
-		strategy: Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>>,
-	) -> DispatchResult {
-		let Owned { owner: mint_to, id_assignment: AssignId((collection, item)), .. } = strategy;
+		strategy: Owned<T::AccountId, PredefinedId<(T::CollectionId, T::ItemId)>>,
+	) -> Result<(T::CollectionId, T::ItemId), DispatchError> {
+		let Owned { owner: mint_to, id_assignment, .. } = strategy;
+		let (collection, item) = id_assignment.params;
 
 		let item_config = ItemConfig { settings: Self::get_default_item_settings(&collection)? };
 
-		Self::do_mint(collection, item, None, mint_to, item_config, |_, _| Ok(()))
+		Self::do_mint(collection.clone(), item.clone(), None, mint_to, item_config, |_, _| Ok(()))?;
+
+		Ok((collection, item))
 	}
 }
 
 impl<T: Config<I>, I: 'static>
-	Create<Instance, Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>, ItemConfig>>
+	Create<Instance, Owned<T::AccountId, PredefinedId<(T::CollectionId, T::ItemId)>, ItemConfig>>
 	for Pallet<T, I>
 {
 	fn create(
-		strategy: Owned<T::AccountId, AssignId<(T::CollectionId, T::ItemId)>, ItemConfig>,
-	) -> DispatchResult {
-		let Owned {
-			owner: mint_to,
-			id_assignment: AssignId((collection, item)),
-			config: item_config,
-			..
-		} = strategy;
+		strategy: Owned<T::AccountId, PredefinedId<(T::CollectionId, T::ItemId)>, ItemConfig>,
+	) -> Result<(T::CollectionId, T::ItemId), DispatchError> {
+		let Owned { owner: mint_to, id_assignment, config: item_config, .. } = strategy;
+		let (collection, item) = id_assignment.params;
 
-		Self::do_mint(collection, item, None, mint_to, item_config, |_, _| Ok(()))
+		Self::do_mint(collection.clone(), item.clone(), None, mint_to, item_config, |_, _| Ok(()))?;
+
+		Ok((collection, item))
 	}
 }
 
