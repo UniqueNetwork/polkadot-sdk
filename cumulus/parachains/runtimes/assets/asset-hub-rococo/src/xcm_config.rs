@@ -27,15 +27,11 @@ use assets_common::{
 use frame_support::{
 	parameter_types,
 	traits::{
-		tokens::{
-			asset_ops::common_strategies::{AssignId, AutoId},
-			imbalance::{ResolveAssetTo, ResolveTo},
-		},
-		ConstU32, Contains, Equals, Everything, MapSuccess, Nothing, PalletInfoAccess,
+		tokens::imbalance::{ResolveAssetTo, ResolveTo},
+		ConstU32, Contains, Equals, Everything, Nothing, PalletInfoAccess,
 	},
 };
 use frame_system::EnsureRoot;
-use pallet_nfts::CollectionConfigFor;
 use pallet_xcm::XcmPassthrough;
 use pallet_xnft::{ConcatIncrementableIdOnCreate, DerivativeClasses, DerivativeInstances};
 use parachains_common::{
@@ -48,16 +44,16 @@ use parachains_common::{
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
 use snowbridge_router_primitives::inbound::GlobalConsensusEthereumConvertsFor;
-use sp_runtime::traits::{AccountIdConversion, ConvertInto, Replace};
+use sp_runtime::traits::{AccountIdConversion, ConvertInto};
 use testnet_parachains_constants::rococo::snowbridge::{
 	EthereumNetwork, INBOUND_QUEUE_PALLET_INDEX,
 };
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
-		EnsureNotDerivativeInstance, MatchDerivativeInstances, MatchDerivativeRegisterParams,
-		RegisterDerivativeId, RegisterOnCreate, RestoreOnCreate, SimpleStash, StashOnDestroy,
-		UniqueDerivedInstancesAdapter, UniqueInstancesAdapter, UniqueInstancesOps,
+		DerivativeRegisterParams, EnsureNotDerivativeInstance, MatchDerivativeInstances,
+		MatchDerivativeRegisterParams, RegisterOnCreate, RestoreOnCreate, SimpleStash,
+		StashOnDestroy, UniqueInstancesAdapter, UniqueInstancesDepositAdapter, UniqueInstancesOps,
 	},
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
@@ -187,10 +183,10 @@ type NftsTransactor = UniqueInstancesAdapter<
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
 
-type NftDerivativesRegistrar = UniqueDerivedInstancesAdapter<
+type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
 	AccountId,
 	LocationToAccountId,
-	RegisterDerivativeId<CollectionId>,
+	DerivativeRegisterParams<CollectionId>,
 	MatchDerivativeRegisterParams<DerivativeCollections>,
 	RegisterOnCreate<DerivativeNfts, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
 >;
