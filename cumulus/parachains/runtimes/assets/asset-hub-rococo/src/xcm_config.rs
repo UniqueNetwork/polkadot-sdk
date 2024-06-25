@@ -55,7 +55,7 @@ use testnet_parachains_constants::rococo::snowbridge::{
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
-		EnsureNotDerivativeInstance, MatchDerivativeIdSources, MatchDerivativeInstances,
+		EnsureNotDerivativeInstance, MatchDerivativeInstances, MatchDerivativeRegisterParams,
 		RegisterDerivativeId, RegisterOnCreate, RestoreOnCreate, SimpleStash, StashOnDestroy,
 		UniqueDerivedInstancesAdapter, UniqueInstancesAdapter, UniqueInstancesOps,
 	},
@@ -190,8 +190,8 @@ type NftsTransactor = UniqueInstancesAdapter<
 type NftDerivativesRegistrar = UniqueDerivedInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
-	AssignId<RegisterDerivativeId<CollectionId>>,
-	MatchDerivativeIdSources<DerivativeCollections>,
+	RegisterDerivativeId<CollectionId>,
+	MatchDerivativeRegisterParams<DerivativeCollections>,
 	RegisterOnCreate<DerivativeNfts, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
 >;
 
@@ -529,13 +529,6 @@ impl pallet_xnft::Config for Runtime {
 
 	type DerivativeClassId = CollectionId;
 	type DerivativeId = (CollectionId, ItemId);
-
-	type DerivativeClassRegistrar = MapSuccess<EnsureRoot<AccountId>, Replace<TreasuryAccount>>;
-
-	type NewClassIdAssignment = AutoId<CollectionId>;
-	type NewClassConfig = CollectionConfigFor<Self>;
-	type NewClassWitness = ();
-	type NewClassCreator = Nfts;
 }
 
 pub type ForeignCreatorsSovereignAccountOf = (

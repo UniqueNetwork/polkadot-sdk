@@ -18,7 +18,7 @@ use super::{
 	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, Nfts, ParachainInfo,
 	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
 	ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue, Xnft,
+	XcmpQueue,
 };
 use assets_common::{
 	matching::{FromSiblingParachain, IsForeignConcreteAsset},
@@ -27,33 +27,26 @@ use assets_common::{
 use frame_support::{
 	parameter_types,
 	traits::{
-		tokens::{
-			asset_ops::common_strategies::{AssignId, AutoId},
-			imbalance::{ResolveAssetTo, ResolveTo},
-		},
-		ConstU32, Contains, Equals, Everything, MapSuccess, Nothing, PalletInfoAccess,
+		tokens::imbalance::{ResolveAssetTo, ResolveTo},
+		ConstU32, Contains, Equals, Everything, Nothing, PalletInfoAccess,
 	},
 };
 use frame_system::EnsureRoot;
-use pallet_nfts::CollectionConfigFor;
 use pallet_xcm::XcmPassthrough;
-use pallet_xnft::{ConcatIncrementableIdOnCreate, DerivativeClasses, DerivativeInstances};
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
 		ConcreteAssetFromSystem, RelayOrOtherSystemParachains,
 	},
-	CollectionId, ItemId, TREASURY_PALLET_ID,
+	TREASURY_PALLET_ID,
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
-use sp_runtime::traits::{AccountIdConversion, ConvertInto, Replace};
+use sp_runtime::traits::{AccountIdConversion, ConvertInto};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
-		EnsureNotDerivativeInstance, MatchDerivativeIdSources, MatchDerivativeInstances,
-		RegisterDerivativeId, RegisterOnCreate, RestoreOnCreate, SimpleStash, StashOnDestroy,
-		UniqueDerivedInstancesAdapter, UniqueInstancesAdapter, UniqueInstancesOps,
+		RestoreOnCreate, SimpleStash, StashOnDestroy, UniqueInstancesAdapter, UniqueInstancesOps,
 	},
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
@@ -167,26 +160,12 @@ pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPa
 
 type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
 
-type DerivativeCollections = DerivativeClasses<Xnft>;
-type DerivativeNfts = DerivativeInstances<Xnft>;
-
 // Means for transacting nft assets.
 type NftsTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
-	(
-		EnsureNotDerivativeInstance<DerivativeNfts, MatchInClassInstances<NftsConvertedConcreteId>>,
-		MatchDerivativeInstances<DerivativeNfts>,
-	),
+	MatchInClassInstances<NftsConvertedConcreteId>,
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
->;
-
-type NftDerivativesRegistrar = UniqueDerivedInstancesAdapter<
-	AccountId,
-	LocationToAccountId,
-	AssignId<RegisterDerivativeId<CollectionId>>,
-	MatchDerivativeIdSources<DerivativeCollections>,
-	RegisterOnCreate<DerivativeNfts, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
@@ -250,7 +229,6 @@ pub type AssetTransactors = (
 	PoolFungiblesTransactor,
 	UniquesTransactor,
 	NftsTransactor,
-	NftDerivativesRegistrar,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -533,20 +511,6 @@ impl pallet_xcm::Config for Runtime {
 impl cumulus_pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-}
-
-impl pallet_xnft::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-
-	type DerivativeClassId = CollectionId;
-	type DerivativeId = (CollectionId, ItemId);
-
-	type DerivativeClassRegistrar = MapSuccess<EnsureRoot<AccountId>, Replace<TreasuryAccount>>;
-
-	type NewClassIdAssignment = AutoId<CollectionId>;
-	type NewClassConfig = CollectionConfigFor<Self>;
-	type NewClassWitness = ();
-	type NewClassCreator = Nfts;
 }
 
 pub type ForeignCreatorsSovereignAccountOf = (
