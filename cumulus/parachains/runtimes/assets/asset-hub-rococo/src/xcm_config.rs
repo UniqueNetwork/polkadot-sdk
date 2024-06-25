@@ -33,7 +33,9 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
-use pallet_xnft::{ConcatIncrementableIdOnCreate, DerivativeClasses, DerivativeInstances};
+use pallet_xnft::{
+	ConcatIncrementableIdOnCreate, DerivativeIdParamsRegistry, DerivativeInstancesRegistry,
+};
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
@@ -169,16 +171,19 @@ pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPa
 
 type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
 
-type DerivativeCollections = DerivativeClasses<Xnft>;
-type DerivativeNfts = DerivativeInstances<Xnft>;
+type ParamsRegitry = DerivativeIdParamsRegistry<Xnft>;
+type DerivativeNftsRegitry = DerivativeInstancesRegistry<Xnft>;
 
 // Means for transacting nft assets.
 type NftsTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	(
-		EnsureNotDerivativeInstance<DerivativeNfts, MatchInClassInstances<NftsConvertedConcreteId>>,
-		MatchDerivativeInstances<DerivativeNfts>,
+		EnsureNotDerivativeInstance<
+			DerivativeNftsRegitry,
+			MatchInClassInstances<NftsConvertedConcreteId>,
+		>,
+		MatchDerivativeInstances<DerivativeNftsRegitry>,
 	),
 	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
 >;
@@ -187,8 +192,8 @@ type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
 	AccountId,
 	LocationToAccountId,
 	DerivativeRegisterParams<CollectionId>,
-	MatchDerivativeRegisterParams<DerivativeCollections>,
-	RegisterOnCreate<DerivativeNfts, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
+	MatchDerivativeRegisterParams<ParamsRegitry>,
+	RegisterOnCreate<DerivativeNftsRegitry, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
@@ -523,7 +528,7 @@ impl cumulus_pallet_xcm::Config for Runtime {
 impl pallet_xnft::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
-	type DerivativeClassId = CollectionId;
+	type DerivativeIdParams = CollectionId;
 	type DerivativeId = (CollectionId, ItemId);
 }
 
