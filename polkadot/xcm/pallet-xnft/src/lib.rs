@@ -87,15 +87,6 @@ pub mod pallet {
 		DerivativeIdOf<T, I>,
 		OptionQuery,
 	>;
-	pub type ForeignNftToDerivativeId<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
-		_,
-		Blake2_128,
-		AssetId,
-		Blake2_128,
-		AssetInstance,
-		DerivativeIdOf<T, I>,
-		OptionQuery,
-	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn derivative_id_to_foreign_nft)]
@@ -290,101 +281,6 @@ where
 			derivative_id_params,
 			next_instance_id_suffix,
 		);
-
-		Ok(derivative_id)
-	}
-}
-
-pub struct MatchDerivativeInstances<XnftPallet>(PhantomData<XnftPallet>);
-impl<T: Config<I>, I: 'static> MatchesInstance<T::DerivativeId>
-	for MatchDerivativeInstances<Pallet<T, I>>
-{
-	fn matches_instance(asset: &Asset) -> Result<T::DerivativeId, ExecutorError> {
-		match asset.fun {
-			Fungibility::NonFungible(asset_instance) => {
-				let nonfungible_asset =
-					NonFungibleAsset { id: asset.id.clone(), instance: asset_instance };
-
-				<ForeignNftToDerivativeId<T, I>>::get(nonfungible_asset)
-					.ok_or(ExecutorError::AssetNotHandled)
-			},
-			Fungibility::Fungible(_) => Err(ExecutorError::AssetNotHandled),
-		}
-	}
-}
-
-pub struct EnsureNotDerivativeInstance<XnftPallet, Matcher>(PhantomData<(XnftPallet, Matcher)>);
-impl<T: Config<I>, I: 'static, Matcher: MatchesInstance<T::DerivativeId>>
-	MatchesInstance<T::DerivativeId> for EnsureNotDerivativeInstance<Pallet<T, I>, Matcher>
-{
-	fn matches_instance(asset: &Asset) -> Result<T::DerivativeId, ExecutorError> {
-		let instance_id = Matcher::matches_instance(asset)?;
-
-		ensure!(
-			!<DerivativeIdToForeignNft<T, I>>::contains_key(&instance_id),
-			ExecutorError::AssetNotHandled,
-		);
-
-		Ok(instance_id)
-	}
-}
-
-pub trait CompositeDerivativeId {
-	type Prefix: Member + Parameter + MaxEncodedLen;
-	type Suffix: Member + Parameter + MaxEncodedLen;
-
-	fn compose(prefix: Self::Prefix, suffix: Self::Suffix) -> Self;
-}
-
-impl<ClassId, InClassInstanceId> CompositeDerivativeId for (ClassId, InClassInstanceId)
-where
-	ClassId: Member + Parameter + MaxEncodedLen,
-	InClassInstanceId: Member + Parameter + MaxEncodedLen,
-{
-	type Prefix = ClassId;
-	type Suffix = InClassInstanceId;
-
-	fn compose(prefix: Self::Prefix, suffix: Self::Suffix) -> Self {
-		(prefix, suffix)
-	}
-}
-
-pub struct ConcatIncrementableIdOnCreate<XnftPallet, CreateOp>(PhantomData<(XnftPallet, CreateOp)>);
-impl<XnftPallet, CreateOp> AssetDefinition<Instance>
-	for ConcatIncrementableIdOnCreate<XnftPallet, CreateOp>
-where
-	CreateOp: AssetDefinition<Instance>,
-{
-	type Id = CreateOp::Id;
-}
-impl<T, I, CreateOp>
-	Create<Instance, Owned<T::AccountId, DeriveAndReportId<T::DerivativeClassId, T::DerivativeId>>>
-	for ConcatIncrementableIdOnCreate<Pallet<T, I>, CreateOp>
-where
-	T: Config<I>,
-	I: 'static,
-	T::DerivativeId: CompositeDerivativeId<Prefix = T::DerivativeClassId>,
-	<T::DerivativeId as CompositeDerivativeId>::Suffix: Incrementable,
-	CreateOp: Create<Instance, Owned<T::AccountId, AssignId<T::DerivativeId>>>,
-{
-	fn create(
-		strategy: Owned<T::AccountId, DeriveAndReportId<T::DerivativeClassId, T::DerivativeId>>,
-	) -> Result<T::DerivativeId, DispatchError> {
-		let Owned { owner, id_assignment: DeriveAndReportId(class_id, ..), .. } = strategy;
-
-		let instance_id_suffix = <NextInClassInstanceIdSuffix<T, I>>::get(&class_id)
-			.or(<T::DerivativeId as CompositeDerivativeId>::Suffix::initial_value())
-			.ok_or(<Error<T, I>>::CantSetNextInstanceIdSuffix)?;
-
-		let next_instance_id_suffix = instance_id_suffix
-			.increment()
-			.ok_or(<Error<T, I>>::CantSetNextInstanceIdSuffix)?;
-
-		let derivative_id = T::DerivativeId::compose(class_id.clone(), instance_id_suffix);
-
-		CreateOp::create(Owned::new(owner, AssignId(derivative_id.clone())))?;
-
-		<NextInClassInstanceIdSuffix<T, I>>::insert(class_id, next_instance_id_suffix);
 
 		Ok(derivative_id)
 	}
