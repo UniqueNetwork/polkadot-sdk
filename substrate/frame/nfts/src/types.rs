@@ -545,3 +545,28 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 	/// A deadline for the signature.
 	pub(super) deadline: Deadline,
 }
+
+pub mod asset_strategies {
+	use super::*;
+	use frame_support::traits::tokens::asset_ops::{
+		MetadataInspectStrategy, MetadataUpdateStrategy,
+	};
+
+	pub struct RegularAttribute<'a>(pub &'a [u8]);
+
+	pub struct SystemAttribute<'a>(pub &'a [u8]);
+
+	pub struct CustomAttribute<'a, AccountId>(pub &'a AccountId, pub &'a [u8]);
+
+	pub struct HasRole<'a, AccountId> {
+		pub who: &'a AccountId,
+		pub role: CollectionRole,
+	}
+	impl<'a, AccountId> MetadataInspectStrategy for HasRole<'a, AccountId> {
+		type Value = bool;
+	}
+	impl<'a, AccountId> MetadataUpdateStrategy for HasRole<'a, AccountId> {
+		type Update<'u> = bool;
+		type Success = ();
+	}
+}

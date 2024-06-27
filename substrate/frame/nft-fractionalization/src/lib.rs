@@ -71,7 +71,11 @@ pub mod pallet {
 				Create, Destroy, Inspect, Mutate,
 			},
 			tokens::{
-				nonfungibles_v2::{Inspect as NonFungiblesInspect, Transfer},
+				asset_ops::{
+					common_asset_kinds::Instance,
+					common_strategies::{CanTransfer, JustDo, Ownership},
+					AssetDefinition, InspectMetadata, Transfer, UpdateMetadata,
+				},
 				AssetId, Balance as AssetBalance,
 				Fortitude::Polite,
 				Precision::{BestEffort, Exact},
@@ -127,11 +131,10 @@ pub mod pallet {
 			+ MetadataDeposit<DepositOf<Self>>;
 
 		/// Registry for minted NFTs.
-		type Nfts: NonFungiblesInspect<
-				Self::AccountId,
-				ItemId = Self::NftId,
-				CollectionId = Self::NftCollectionId,
-			> + Transfer<Self::AccountId>;
+		type Nfts: AssetDefinition<Instance, Id = (Self::NftCollectionId, Self::NftId)>
+			+ InspectMetadata<Instance, Ownership<Self::AccountId>>
+			+ UpdateMetadata<Instance, CanTransfer>
+			+ Transfer<Instance, JustDo<Self::AccountId>>;
 
 		/// The pallet's id, used for deriving its sovereign account ID.
 		#[pallet::constant]
@@ -241,7 +244,7 @@ pub mod pallet {
 			let beneficiary = T::Lookup::lookup(beneficiary)?;
 
 			let nft_owner =
-				T::Nfts::owner(&nft_collection_id, &nft_id).ok_or(Error::<T>::NftNotFound)?;
+				T::Nfts::inspect_metadata(&(nft_collection_id, nft_id), Ownership::default())?;
 			ensure!(nft_owner == who, Error::<T>::NoPermission);
 
 			let pallet_account = Self::get_pallet_account();
@@ -340,7 +343,7 @@ pub mod pallet {
 
 		/// Prevent further transferring of NFT.
 		fn do_lock_nft(nft_collection_id: T::NftCollectionId, nft_id: T::NftId) -> DispatchResult {
-			T::Nfts::disable_transfer(&nft_collection_id, &nft_id)
+			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::default(), false)
 		}
 
 		/// Remove the transfer lock and transfer the NFT to the account returning the tokens.
@@ -349,8 +352,8 @@ pub mod pallet {
 			nft_id: T::NftId,
 			account: &T::AccountId,
 		) -> DispatchResult {
-			T::Nfts::enable_transfer(&nft_collection_id, &nft_id)?;
-			T::Nfts::transfer(&nft_collection_id, &nft_id, account)
+			T::Nfts::update_metadata(&(nft_collection_id, nft_id), CanTransfer::default(), true)?;
+			T::Nfts::transfer(&(nft_collection_id, nft_id), JustDo(account.clone()))
 		}
 
 		/// Create the new asset.
