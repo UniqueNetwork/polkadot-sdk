@@ -204,6 +204,33 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		Ok(())
 	}
 
+	pub(crate) fn do_update_attribute(
+		maybe_check_origin: Option<T::AccountId>,
+		collection: T::CollectionId,
+		maybe_item: Option<T::ItemId>,
+		namespace: AttributeNamespace<T::AccountId>,
+		key: BoundedVec<u8, T::KeyLimit>,
+		update: Option<BoundedVec<u8, T::ValueLimit>>,
+	) -> DispatchResult {
+		match (maybe_check_origin, update) {
+			(Some(origin), Some(value)) => {
+				let depositor = match namespace {
+					AttributeNamespace::CollectionOwner => Self::collection_owner(collection)
+						.ok_or(Error::<T, I>::UnknownCollection)?,
+					_ => origin.clone(),
+				};
+
+				Self::do_set_attribute(
+					origin, collection, maybe_item, namespace, key, value, depositor,
+				)
+			},
+			(None, Some(value)) =>
+				Self::do_force_set_attribute(None, collection, maybe_item, namespace, key, value),
+			(maybe_check_origin, None) =>
+				Self::do_clear_attribute(maybe_check_origin, collection, maybe_item, namespace, key),
+		}
+	}
+
 	/// Sets multiple attributes for an item or a collection.
 	///
 	/// This function checks the pre-signed data is valid and updates the attributes of an item or
