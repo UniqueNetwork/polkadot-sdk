@@ -156,6 +156,7 @@ std = [
 	"pallet-xcm-bridge-hub-router?/std",
 	"pallet-xcm-bridge-hub?/std",
 	"pallet-xcm?/std",
+	"pallet-xnft?/std",
 	"parachains-common?/std",
 	"parachains-runtimes-test-utils?/std",
 	"polkadot-core-primitives?/std",
@@ -337,6 +338,7 @@ runtime-benchmarks = [
 	"pallet-xcm-bridge-hub-router?/runtime-benchmarks",
 	"pallet-xcm-bridge-hub?/runtime-benchmarks",
 	"pallet-xcm?/runtime-benchmarks",
+	"pallet-xnft?/runtime-benchmarks",
 	"parachains-common?/runtime-benchmarks",
 	"polkadot-cli?/runtime-benchmarks",
 	"polkadot-node-metrics?/runtime-benchmarks",
@@ -473,6 +475,7 @@ try-runtime = [
 	"pallet-xcm-bridge-hub-router?/try-runtime",
 	"pallet-xcm-bridge-hub?/try-runtime",
 	"pallet-xcm?/try-runtime",
+	"pallet-xnft?/try-runtime",
 	"polkadot-cli?/try-runtime",
 	"polkadot-omni-node-lib?/try-runtime",
 	"polkadot-runtime-common?/try-runtime",
@@ -1518,6 +1521,11 @@ path = "../bridges/modules/xcm-bridge-hub-router"
 default-features = false
 optional = true
 version = "0.16.0"
+
+[dependencies.pallet-xnft]
+path = "../polkadot/xcm/pallet-xnft"
+default-features = false
+optional = true
 
 [dependencies.parachains-common]
 path = "../cumulus/parachains/common"
