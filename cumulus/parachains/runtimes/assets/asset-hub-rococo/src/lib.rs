@@ -967,6 +967,7 @@ construct_runtime!(
 		PolkadotXcm: pallet_xcm = 31,
 		CumulusXcm: cumulus_pallet_xcm = 32,
 		MessageQueue: pallet_message_queue = 34,
+		Xnft: pallet_xnft = 35,
 
 		// Handy utilities.
 		Utility: pallet_utility = 40,

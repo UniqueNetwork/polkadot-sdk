@@ -15,10 +15,10 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ParachainInfo,
+	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, Nfts, ParachainInfo,
 	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
 	ToWestendXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue,
+	XcmpQueue, Xnft,
 };
 use assets_common::{
 	matching::{FromNetwork, FromSiblingParachain, IsForeignConcreteAsset},
@@ -33,12 +33,15 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
+use pallet_xnft::{
+	ConcatIncrementableIdOnCreate, DerivativeIdParamsRegistry, DerivativeInstancesRegistry,
+};
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
 		ConcreteAssetFromSystem, ParentRelayOrSiblingParachains, RelayOrOtherSystemParachains,
 	},
-	TREASURY_PALLET_ID,
+	CollectionId, ItemId, TREASURY_PALLET_ID,
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
@@ -49,17 +52,22 @@ use testnet_parachains_constants::rococo::snowbridge::{
 };
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	unique_instances::UniqueInstancesAdapter, AccountId32Aliases, AllowExplicitUnpaidExecutionFrom,
-	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry,
-	DescribeAllTerminal, DescribeFamily, EnsureXcmOrigin, FrameTransactionalProcessor,
-	FungibleAdapter, FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription,
-	IsConcrete, LocalMint, MatchInClassInstances, NetworkExportTableItem, NoChecking,
-	ParentAsSuperuser, ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount,
-	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignPaidRemoteExporter, SovereignSignedViaLocation, StartsWith,
-	StartsWithExplicitGlobalConsensus, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
-	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
+	unique_instances::{
+		DerivativeRegisterParams, EnsureNotDerivativeInstance, MatchDerivativeInstances,
+		MatchDerivativeRegisterParams, RegisterOnCreate, RestoreOnCreate, SimpleStash,
+		StashOnDestroy, UniqueInstancesAdapter, UniqueInstancesDepositAdapter, UniqueInstancesOps,
+	},
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
+	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal, DescribeFamily,
+	EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter,
+	GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete, LocalMint,
+	MatchInClassInstances, NetworkExportTableItem, NoChecking, ParentAsSuperuser, ParentIsPreset,
+	RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignPaidRemoteExporter,
+	SovereignSignedViaLocation, StartsWith, StartsWithExplicitGlobalConsensus, TakeWeightCredit,
+	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	XcmFeeManagerFromComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -82,6 +90,8 @@ parameter_types! {
 		PalletInstance(<PoolAssets as PalletInfoAccess>::index() as u8).into();
 	pub UniquesPalletLocation: Location =
 		PalletInstance(<Uniques as PalletInfoAccess>::index() as u8).into();
+	pub NftsPalletLocation: Location =
+		PalletInstance(<Nfts as PalletInfoAccess>::index() as u8).into();
 	pub CheckingAccount: AccountId = PolkadotXcm::check_account();
 	pub const GovernanceLocation: Location = Location::parent();
 	pub StakingPot: AccountId = CollatorSelection::account_id();
@@ -156,6 +166,40 @@ pub type UniquesTransactor = UniqueInstancesAdapter<
 	Uniques,
 >;
 
+/// Matcher for converting `ClassId`/`InstanceId` into a nfts asset.
+pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPalletLocation>;
+
+type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
+
+type ParamsRegitry = DerivativeIdParamsRegistry<Xnft>;
+type DerivativeNftsRegitry = DerivativeInstancesRegistry<Xnft>;
+
+/// Matches NFTs minted on this chain
+/// and which do not correspond to any foreign NFT.
+///
+/// See the [`EnsureNotDerivativeInstance`] documentation
+/// for why we need to match such NFTs carefully.
+type MatchAssetHubOriginalInstances = EnsureNotDerivativeInstance<
+	DerivativeNftsRegitry,
+	MatchInClassInstances<NftsConvertedConcreteId>,
+>;
+
+/// Means for transacting nft original assets.
+type NftsTransactor = UniqueInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	(MatchAssetHubOriginalInstances, MatchDerivativeInstances<DerivativeNftsRegitry>),
+	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
+>;
+
+type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
+	AccountId,
+	LocationToAccountId,
+	DerivativeRegisterParams<CollectionId>,
+	MatchDerivativeRegisterParams<ParamsRegitry>,
+	RegisterOnCreate<DerivativeNftsRegitry, ConcatIncrementableIdOnCreate<Xnft, Nfts>>,
+>;
+
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
 	(
@@ -216,6 +260,8 @@ pub type AssetTransactors = (
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
 	UniquesTransactor,
+	NftsTransactor,
+	NftDerivativesRegistrar,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -477,6 +523,13 @@ impl pallet_xcm::Config for Runtime {
 	type AdminOrigin = EnsureRoot<AccountId>;
 	type MaxRemoteLockConsumers = ConstU32<0>;
 	type RemoteLockConsumerIdentifier = ();
+}
+
+impl pallet_xnft::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+
+	type DerivativeIdParams = CollectionId;
+	type DerivativeId = (CollectionId, ItemId);
 }
 
 impl cumulus_pallet_xcm::Config for Runtime {
