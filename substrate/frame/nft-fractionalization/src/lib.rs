@@ -56,7 +56,6 @@ pub use weights::WeightInfo;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use core::fmt::Display;
 	use frame_support::{
 		dispatch::DispatchResult,
 		ensure,
@@ -72,17 +71,20 @@ pub mod pallet {
 				Create, Destroy, Inspect, Mutate,
 			},
 			tokens::{
-				nonfungibles_v2::{Inspect as NonFungiblesInspect, Transfer},
+				asset_ops::{
+					common_asset_kinds::Instance,
+					common_strategies::{Bytes, CanTransfer, JustDo, Ownership},
+					AssetDefinition, InspectMetadata, Transfer, UpdateMetadata,
+				},
 				AssetId, Balance as AssetBalance,
 				Fortitude::Polite,
 				Precision::{BestEffort, Exact},
 				Preservation::{Expendable, Preserve},
 			},
 		},
-		BoundedVec, PalletId,
+		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
-	use scale_info::prelude::{format, string::String};
 	use sp_runtime::traits::{One, Zero};
 
 	#[pallet::pallet]
@@ -106,11 +108,8 @@ pub mod pallet {
 		#[pallet::constant]
 		type Deposit: Get<DepositOf<Self>>;
 
-		/// Identifier for the collection of NFT.
-		type NftCollectionId: Member + Parameter + MaxEncodedLen + Copy + Display;
-
-		/// The type used to identify an NFT within a collection.
-		type NftId: Member + Parameter + MaxEncodedLen + Copy + Display;
+		/// The type used to identify an NFT.
+		type NftId: Member + Parameter + MaxEncodedLen;
 
 		/// The type used to describe the amount of fractions converted into assets.
 		type AssetBalance: AssetBalance;
@@ -127,27 +126,18 @@ pub mod pallet {
 			+ MetadataDeposit<DepositOf<Self>>;
 
 		/// Registry for minted NFTs.
-		type Nfts: NonFungiblesInspect<
-				Self::AccountId,
-				ItemId = Self::NftId,
-				CollectionId = Self::NftCollectionId,
-			> + Transfer<Self::AccountId>;
+		type Nfts: AssetDefinition<Instance, Id = Self::NftId>
+			+ InspectMetadata<Instance, Ownership<Self::AccountId>>
+			+ UpdateMetadata<Instance, CanTransfer>
+			+ Transfer<Instance, JustDo<Self::AccountId>>;
+
+		type FractionalizedNfts: AssetDefinition<Instance, Id = Self::NftId>
+			+ InspectMetadata<Instance, Bytes<FractionalizedName>>
+			+ InspectMetadata<Instance, Bytes<FractionalizedSymbol>>;
 
 		/// The pallet's id, used for deriving its sovereign account ID.
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
-
-		/// The newly created asset's symbol.
-		#[pallet::constant]
-		type NewAssetSymbol: Get<BoundedVec<u8, Self::StringLimit>>;
-
-		/// The newly created asset's name.
-		#[pallet::constant]
-		type NewAssetName: Get<BoundedVec<u8, Self::StringLimit>>;
-
-		/// The maximum length of a name or symbol stored on-chain.
-		#[pallet::constant]
-		type StringLimit: Get<u32>;
 
 		/// A set of helper functions for benchmarking.
 		#[cfg(feature = "runtime-benchmarks")]
@@ -163,7 +153,7 @@ pub mod pallet {
 	pub type NftToAsset<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		(T::NftCollectionId, T::NftId),
+		T::NftId,
 		Details<AssetIdOf<T>, AssetBalanceOf<T>, DepositOf<T>, T::AccountId>,
 		OptionQuery,
 	>;
@@ -173,19 +163,13 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// An NFT was successfully fractionalized.
 		NftFractionalized {
-			nft_collection: T::NftCollectionId,
 			nft: T::NftId,
 			fractions: AssetBalanceOf<T>,
 			asset: AssetIdOf<T>,
 			beneficiary: T::AccountId,
 		},
 		/// An NFT was successfully returned back.
-		NftUnified {
-			nft_collection: T::NftCollectionId,
-			nft: T::NftId,
-			asset: AssetIdOf<T>,
-			beneficiary: T::AccountId,
-		},
+		NftUnified { nft: T::NftId, asset: AssetIdOf<T>, beneficiary: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -217,9 +201,7 @@ pub mod pallet {
 		///
 		/// `Deposit` funds of sender are reserved.
 		///
-		/// - `nft_collection_id`: The ID used to identify the collection of the NFT.
-		/// Is used within the context of `pallet_nfts`.
-		/// - `nft_id`: The ID used to identify the NFT within the given collection.
+		/// - `nft_id`: The ID used to identify the NFT.
 		/// Is used within the context of `pallet_nfts`.
 		/// - `asset_id`: The ID of the new asset. It must not exist.
 		/// Is used within the context of `pallet_assets`.
@@ -231,7 +213,6 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::fractionalize())]
 		pub fn fractionalize(
 			origin: OriginFor<T>,
-			nft_collection_id: T::NftCollectionId,
 			nft_id: T::NftId,
 			asset_id: AssetIdOf<T>,
 			beneficiary: AccountIdLookupOf<T>,
@@ -240,31 +221,23 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let beneficiary = T::Lookup::lookup(beneficiary)?;
 
-			let nft_owner =
-				T::Nfts::owner(&nft_collection_id, &nft_id).ok_or(Error::<T>::NftNotFound)?;
+			let nft_owner = T::Nfts::inspect_metadata(&nft_id, Ownership::default())?;
 			ensure!(nft_owner == who, Error::<T>::NoPermission);
 
 			let pallet_account = Self::get_pallet_account();
 			let deposit = T::Deposit::get();
 			T::Currency::hold(&HoldReason::Fractionalized.into(), &nft_owner, deposit)?;
-			Self::do_lock_nft(nft_collection_id, nft_id)?;
+			Self::do_lock_nft(&nft_id)?;
 			Self::do_create_asset(asset_id.clone(), pallet_account.clone())?;
 			Self::do_mint_asset(asset_id.clone(), &beneficiary, fractions)?;
-			Self::do_set_metadata(
-				asset_id.clone(),
-				&who,
-				&pallet_account,
-				&nft_collection_id,
-				&nft_id,
-			)?;
+			Self::do_set_metadata(asset_id.clone(), &who, &pallet_account, &nft_id)?;
 
 			NftToAsset::<T>::insert(
-				(nft_collection_id, nft_id),
+				&nft_id,
 				Details { asset: asset_id.clone(), fractions, asset_creator: nft_owner, deposit },
 			);
 
 			Self::deposit_event(Event::NftFractionalized {
-				nft_collection: nft_collection_id,
 				nft: nft_id,
 				fractions,
 				asset: asset_id,
@@ -280,8 +253,6 @@ pub mod pallet {
 		///
 		/// `Deposit` funds will be returned to `asset_creator`.
 		///
-		/// - `nft_collection_id`: The ID used to identify the collection of the NFT.
-		/// Is used within the context of `pallet_nfts`.
 		/// - `nft_id`: The ID used to identify the NFT within the given collection.
 		/// Is used within the context of `pallet_nfts`.
 		/// - `asset_id`: The ID of the asset being returned and destroyed. Must match
@@ -294,7 +265,6 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::unify())]
 		pub fn unify(
 			origin: OriginFor<T>,
-			nft_collection_id: T::NftCollectionId,
 			nft_id: T::NftId,
 			asset_id: AssetIdOf<T>,
 			beneficiary: AccountIdLookupOf<T>,
@@ -302,14 +272,14 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let beneficiary = T::Lookup::lookup(beneficiary)?;
 
-			NftToAsset::<T>::try_mutate_exists((nft_collection_id, nft_id), |maybe_details| {
+			NftToAsset::<T>::try_mutate_exists(nft_id.clone(), |maybe_details| {
 				let details = maybe_details.take().ok_or(Error::<T>::NftNotFractionalized)?;
 				ensure!(details.asset == asset_id, Error::<T>::IncorrectAssetId);
 
 				let deposit = details.deposit;
 				let asset_creator = details.asset_creator;
 				Self::do_burn_asset(asset_id.clone(), &who, details.fractions)?;
-				Self::do_unlock_nft(nft_collection_id, nft_id, &beneficiary)?;
+				Self::do_unlock_nft(&nft_id, &beneficiary)?;
 				T::Currency::release(
 					&HoldReason::Fractionalized.into(),
 					&asset_creator,
@@ -318,7 +288,6 @@ pub mod pallet {
 				)?;
 
 				Self::deposit_event(Event::NftUnified {
-					nft_collection: nft_collection_id,
 					nft: nft_id,
 					asset: asset_id,
 					beneficiary,
@@ -339,18 +308,14 @@ pub mod pallet {
 		}
 
 		/// Prevent further transferring of NFT.
-		fn do_lock_nft(nft_collection_id: T::NftCollectionId, nft_id: T::NftId) -> DispatchResult {
-			T::Nfts::disable_transfer(&nft_collection_id, &nft_id)
+		fn do_lock_nft(nft_id: &T::NftId) -> DispatchResult {
+			T::Nfts::update_metadata(nft_id, CanTransfer::default(), false)
 		}
 
 		/// Remove the transfer lock and transfer the NFT to the account returning the tokens.
-		fn do_unlock_nft(
-			nft_collection_id: T::NftCollectionId,
-			nft_id: T::NftId,
-			account: &T::AccountId,
-		) -> DispatchResult {
-			T::Nfts::enable_transfer(&nft_collection_id, &nft_id)?;
-			T::Nfts::transfer(&nft_collection_id, &nft_id, account)
+		fn do_unlock_nft(nft_id: &T::NftId, account: &T::AccountId) -> DispatchResult {
+			T::Nfts::update_metadata(nft_id, CanTransfer::default(), true)?;
+			T::Nfts::transfer(nft_id, JustDo(account.clone()))
 		}
 
 		/// Create the new asset.
@@ -383,25 +348,29 @@ pub mod pallet {
 			asset_id: AssetIdOf<T>,
 			depositor: &T::AccountId,
 			pallet_account: &T::AccountId,
-			nft_collection_id: &T::NftCollectionId,
 			nft_id: &T::NftId,
 		) -> DispatchResult {
-			let name = format!(
-				"{} {nft_collection_id}-{nft_id}",
-				String::from_utf8_lossy(&T::NewAssetName::get())
-			);
-			let symbol: &[u8] = &T::NewAssetSymbol::get();
+			let fractionalized_name: &[u8] =
+				&T::FractionalizedNfts::inspect_metadata(&nft_id, Bytes(FractionalizedName))?;
+			let symbol: &[u8] =
+				&T::FractionalizedNfts::inspect_metadata(&nft_id, Bytes(FractionalizedSymbol))?;
 			let existential_deposit = T::Currency::minimum_balance();
 			let pallet_account_balance = T::Currency::balance(&pallet_account);
 
 			if pallet_account_balance < existential_deposit {
 				T::Currency::transfer(&depositor, &pallet_account, existential_deposit, Preserve)?;
 			}
-			let metadata_deposit = T::Assets::calc_metadata_deposit(name.as_bytes(), symbol);
+			let metadata_deposit = T::Assets::calc_metadata_deposit(fractionalized_name, symbol);
 			if !metadata_deposit.is_zero() {
 				T::Currency::transfer(&depositor, &pallet_account, metadata_deposit, Preserve)?;
 			}
-			T::Assets::set(asset_id, &pallet_account, name.into(), symbol.into(), 0)
+			T::Assets::set(asset_id, &pallet_account, fractionalized_name.into(), symbol.into(), 0)
 		}
 	}
 }
+
+/// Bytes to be used as the name of the fractionalized asset.
+pub struct FractionalizedName;
+
+/// Bytes to be used as the symbol of the fractionalized asset.
+pub struct FractionalizedSymbol;

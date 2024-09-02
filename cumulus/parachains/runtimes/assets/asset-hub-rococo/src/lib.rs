@@ -60,9 +60,16 @@ use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	ord_parameter_types, parameter_types,
 	traits::{
-		fungible, fungibles, tokens::imbalance::ResolveAssetTo, AsEnsureOriginWithArg, ConstBool,
-		ConstU128, ConstU32, ConstU64, ConstU8, EitherOfDiverse, Equals, InstanceFilter,
-		MapSuccess, TransformOrigin,
+		fungible, fungibles,
+		tokens::{
+			asset_ops::{
+				common_asset_kinds::Instance, common_strategies::Bytes, AssetDefinition,
+				InspectMetadata,
+			},
+			imbalance::ResolveAssetTo,
+		},
+		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, EitherOfDiverse,
+		Equals, InstanceFilter, TransformOrigin,
 	},
 	weights::{ConstantMultiplier, Weight, WeightToFee as _},
 	BoundedVec, PalletId,
@@ -72,6 +79,7 @@ use frame_system::{
 	EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 use pallet_asset_conversion_tx_payment::SwapAssetAdapter;
+use pallet_nft_fractionalization::{FractionalizedName, FractionalizedSymbol};
 use pallet_nfts::PalletFeatures;
 use parachains_common::{
 	impls::DealWithFees,
@@ -79,7 +87,8 @@ use parachains_common::{
 	AccountId, AssetIdForTrustBackedAssets, AuraId, Balance, BlockNumber, CollectionId, Hash,
 	Header, ItemId, Nonce, Signature, AVERAGE_ON_INITIALIZE_RATIO, NORMAL_DISPATCH_RATIO,
 };
-use sp_runtime::{Perbill, RuntimeDebug};
+use scale_info::prelude::{format, string::String};
+use sp_runtime::{DispatchError, Perbill, RuntimeDebug};
 use testnet_parachains_constants::rococo::{consensus::*, currency::*, fee::WeightToFee, time::*};
 use xcm_config::{
 	ForeignAssetsConvertedConcreteId, ForeignCreatorsSovereignAccountOf, GovernanceLocation,
@@ -868,23 +877,39 @@ impl pallet_uniques::Config<pallet_uniques::Instance2> for Runtime {
 
 parameter_types! {
 	pub const NftFractionalizationPalletId: PalletId = PalletId(*b"fraction");
-	pub NewAssetSymbol: BoundedVec<u8, AssetsStringLimit> = (*b"FRAC").to_vec().try_into().unwrap();
-	pub NewAssetName: BoundedVec<u8, AssetsStringLimit> = (*b"Frac").to_vec().try_into().unwrap();
+}
+
+pub struct FractionalizedNfts;
+impl AssetDefinition<Instance> for FractionalizedNfts {
+	type Id = <Nfts as AssetDefinition<Instance>>::Id;
+}
+impl InspectMetadata<Instance, Bytes<FractionalizedName>> for FractionalizedNfts {
+	fn inspect_metadata(
+		(collection_id, item_id): &Self::Id,
+		_frac_name: Bytes<FractionalizedName>,
+	) -> Result<Vec<u8>, DispatchError> {
+		Ok(format!("Frac {collection_id}-{item_id}").into_bytes())
+	}
+}
+impl InspectMetadata<Instance, Bytes<FractionalizedSymbol>> for FractionalizedNfts {
+	fn inspect_metadata(
+		_instance_id: &Self::Id,
+		_frac_name: Bytes<FractionalizedSymbol>,
+	) -> Result<Vec<u8>, DispatchError> {
+		Ok(String::from("FRAC").into_bytes())
+	}
 }
 
 impl pallet_nft_fractionalization::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Deposit = AssetDeposit;
 	type Currency = Balances;
-	type NewAssetSymbol = NewAssetSymbol;
-	type NewAssetName = NewAssetName;
-	type StringLimit = AssetsStringLimit;
-	type NftCollectionId = <Self as pallet_nfts::Config>::CollectionId;
-	type NftId = <Self as pallet_nfts::Config>::ItemId;
 	type AssetBalance = <Self as pallet_balances::Config>::Balance;
 	type AssetId = <Self as pallet_assets::Config<TrustBackedAssetsInstance>>::AssetId;
 	type Assets = Assets;
+	type NftId = <Nfts as AssetDefinition<Instance>>::Id;
 	type Nfts = Nfts;
+	type FractionalizedNfts = FractionalizedNfts;
 	type PalletId = NftFractionalizationPalletId;
 	type WeightInfo = pallet_nft_fractionalization::weights::SubstrateWeight<Runtime>;
 	type RuntimeHoldReason = RuntimeHoldReason;
