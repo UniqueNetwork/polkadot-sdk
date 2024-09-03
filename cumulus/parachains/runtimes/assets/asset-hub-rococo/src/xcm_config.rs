@@ -15,10 +15,10 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ParachainInfo,
-	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
-	ToWestendXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue,
+	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
+	ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeOrigin, ToWestendXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques,
+	WeightToFee, XcmpQueue,
 };
 use assets_common::{
 	matching::{FromNetwork, FromSiblingParachain, IsForeignConcreteAsset},
@@ -148,26 +148,45 @@ pub type FungiblesTransactor = FungiblesAdapter<
 pub type UniquesConvertedConcreteId =
 	assets_common::UniquesConvertedConcreteId<UniquesPalletLocation>;
 
-/// Means for transacting unique assets.
-pub type UniquesTransactor = UniqueInstancesAdapter<
+/// Means for transacting local unique assets.
+pub type LocalUniquesTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	MatchInClassInstances<UniquesConvertedConcreteId>,
 	pallet_uniques::asset_ops::Item<Uniques>,
 >;
 
+pub type FilterInvalidForeignAssets = (
+	// Ignore `TrustBackedAssets` explicitly
+	StartsWith<TrustBackedAssetsPalletLocation>,
+	// Ignore original uniques
+	StartsWith<UniquesPalletLocation>,
+	// Ignore assets that start explicitly with our `GlobalConsensus(NetworkId)`, means:
+	// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
+	//   ..)}`
+	// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` won't be
+	//   accepted here
+	StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
+);
+
+/// `AssetId`/`AssetInstance` converter for `ForeignUniques`.
+pub type ForeignUniquesConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
+	FilterInvalidForeignAssets,
+	xcm::v3::AssetInstance,
+	xcm::v3::Location,
+>;
+
+/// Means for transacting foreign unique assets.
+pub type ForeignUniquesTransactor = UniqueInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	MatchInClassInstances<ForeignUniquesConvertedConcreteId>,
+	ForeignUniques,
+>;
+
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
-	(
-		// Ignore `TrustBackedAssets` explicitly
-		StartsWith<TrustBackedAssetsPalletLocation>,
-		// Ignore assets that start explicitly with our `GlobalConsensus(NetworkId)`, means:
-		// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
-		//   ..)}`
-		// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` won't
-		//   be accepted here
-		StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
-	),
+	FilterInvalidForeignAssets,
 	Balance,
 	xcm::v3::Location,
 >;
@@ -215,7 +234,8 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
-	UniquesTransactor,
+	LocalUniquesTransactor,
+	ForeignUniquesTransactor,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
