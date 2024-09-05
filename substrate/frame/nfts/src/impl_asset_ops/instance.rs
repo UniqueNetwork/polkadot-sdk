@@ -308,11 +308,9 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 			}
 		}
 
-		Self::update_metadata(
+		<Self as UpdateMetadata<Instance, _>>::update_metadata(
 			id,
-			Bytes(RegularAttribute(
-				&PalletAttributes::<T::CollectionId>::TransferDisabled.encode(),
-			)),
+			Bytes(SystemAttribute(&PalletAttributes::<T::CollectionId>::TransferDisabled.encode())),
 			update.then_some(&[]),
 		)
 	}
