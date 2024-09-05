@@ -298,7 +298,9 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 		_can_transfer: CanTransfer,
 		update: bool,
 	) -> DispatchResult {
-		if update {
+		let disable = !update;
+
+		if disable {
 			let transfer_disabled =
 				Self::has_system_attribute(collection, &item, PalletAttributes::TransferDisabled)?;
 
@@ -311,7 +313,7 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Instance, CanTransfer> for Pallet<
 		<Self as UpdateMetadata<Instance, _>>::update_metadata(
 			id,
 			Bytes(SystemAttribute(&PalletAttributes::<T::CollectionId>::TransferDisabled.encode())),
-			update.then_some(&[]),
+			disable.then_some(&[]),
 		)
 	}
 }
