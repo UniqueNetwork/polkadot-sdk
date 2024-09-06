@@ -163,6 +163,19 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		Ok(())
 	}
 
+	pub(crate) fn do_update_item_metadata(
+		maybe_check_origin: Option<T::AccountId>,
+		collection: T::CollectionId,
+		item: T::ItemId,
+		update: Option<BoundedVec<u8, T::StringLimit>>,
+	) -> DispatchResult {
+		match update {
+			Some(data) =>
+				Self::do_set_item_metadata(maybe_check_origin, collection, item, data, None),
+			None => Self::do_clear_item_metadata(maybe_check_origin, collection, item),
+		}
+	}
+
 	/// Sets the metadata for a specific collection.
 	///
 	/// - `maybe_check_origin`: An optional account ID that is allowed to set the collection
@@ -266,6 +279,17 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 			Self::deposit_event(Event::CollectionMetadataCleared { collection });
 			Ok(())
 		})
+	}
+
+	pub(crate) fn do_update_collection_metadata(
+		maybe_check_origin: Option<T::AccountId>,
+		collection: T::CollectionId,
+		update: Option<BoundedVec<u8, T::StringLimit>>,
+	) -> DispatchResult {
+		match update {
+			Some(data) => Self::do_set_collection_metadata(maybe_check_origin, collection, data),
+			None => Self::do_clear_collection_metadata(maybe_check_origin, collection),
+		}
 	}
 
 	/// A helper method to construct metadata.
