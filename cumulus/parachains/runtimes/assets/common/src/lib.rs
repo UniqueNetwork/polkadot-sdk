@@ -71,6 +71,17 @@ pub type UniquesConvertedConcreteId<UniquesPalletLocation> = MatchedConvertedCon
 	TryConvertInto,
 >;
 
+/// [`MatchedConvertedConcreteId`] converter dedicated for `Nfts`
+pub type NftsConvertedConcreteId<NftsPalletLocation> = MatchedConvertedConcreteId<
+	CollectionId,
+	ItemId,
+	// The asset starts with the nfts pallet. The `CollectionId` of the asset is specified as a
+	// junction within the pallet itself.
+	StartsWith<NftsPalletLocation>,
+	CollectionIdForUniquesConvert<NftsPalletLocation>,
+	TryConvertInto,
+>;
+
 /// [`MatchedConvertedConcreteId`] converter dedicated for `TrustBackedAssets`,
 /// it is a similar implementation to `TrustBackedAssetsConvertedConcreteId`,
 /// but it converts `AssetId` to `xcm::v*::Location` type instead of `AssetIdForTrustBackedAssets =
