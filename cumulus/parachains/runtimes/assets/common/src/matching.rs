@@ -28,13 +28,30 @@ frame_support::parameter_types! {
 }
 
 /// Accepts an asset if it is from the origin.
-pub struct IsForeignConcreteAsset<IsForeign>(core::marker::PhantomData<IsForeign>);
+pub struct IsForeignFungibleAsset<IsForeign>(core::marker::PhantomData<IsForeign>);
 impl<IsForeign: ContainsPair<Location, Location>> ContainsPair<Asset, Location>
-	for IsForeignConcreteAsset<IsForeign>
+	for IsForeignFungibleAsset<IsForeign>
 {
 	fn contains(asset: &Asset, origin: &Location) -> bool {
-		log::trace!(target: "xcm::contains", "IsForeignConcreteAsset asset: {:?}, origin: {:?}", asset, origin);
-		matches!(asset.id, AssetId(ref id) if IsForeign::contains(id, origin))
+		log::trace!(target: "xcm::contains", "IsForeignFungibleAsset asset: {:?}, origin: {:?}", asset, origin);
+		matches!(asset, Asset {
+			id: AssetId(ref id),
+			fun: Fungibility::Fungible(_),
+		} if IsForeign::contains(id, origin))
+	}
+}
+
+/// Accepts an asset if it is from the origin.
+pub struct IsForeignNonFungibleAsset<IsForeign>(core::marker::PhantomData<IsForeign>);
+impl<IsForeign: ContainsPair<Location, Location>> ContainsPair<Asset, Location>
+	for IsForeignNonFungibleAsset<IsForeign>
+{
+	fn contains(asset: &Asset, origin: &Location) -> bool {
+		log::trace!(target: "xcm::contains", "IsForeignNonFungibleAsset asset: {:?}, origin: {:?}", asset, origin);
+		matches!(asset, Asset {
+			id: AssetId(ref id),
+			fun: Fungibility::NonFungible(_),
+		} if IsForeign::contains(id, origin))
 	}
 }
 

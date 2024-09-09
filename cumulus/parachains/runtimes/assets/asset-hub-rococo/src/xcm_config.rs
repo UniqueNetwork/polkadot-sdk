@@ -337,7 +337,7 @@ pub type WaivedLocations = (
 /// - Sibling parachains' assets from where they originate (as `ForeignCreators`).
 pub type TrustedTeleporters = (
 	ConcreteAssetFromSystem<TokenLocation>,
-	IsForeignConcreteAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+	IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
 );
 
 /// Asset converter for pool assets.
