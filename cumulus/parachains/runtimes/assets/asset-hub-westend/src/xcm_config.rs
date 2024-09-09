@@ -15,13 +15,13 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ParachainInfo,
-	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
-	ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue,
+	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
+	ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeOrigin, ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques,
+	WeightToFee, XcmpQueue,
 };
 use assets_common::{
-	matching::{FromSiblingParachain, IsForeignConcreteAsset},
+	matching::{FromSiblingParachain, IsForeignFungibleAsset, IsForeignNonFungibleAsset},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
@@ -141,26 +141,45 @@ pub type FungiblesTransactor = FungiblesAdapter<
 pub type UniquesConvertedConcreteId =
 	assets_common::UniquesConvertedConcreteId<UniquesPalletLocation>;
 
-/// Means for transacting unique assets.
-pub type UniquesTransactor = UniqueInstancesAdapter<
+/// Means for transacting local unique assets.
+pub type LocalUniquesTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	MatchInClassInstances<UniquesConvertedConcreteId>,
 	pallet_uniques::asset_ops::Item<Uniques>,
 >;
 
+pub type FilterInvalidForeignAssets = (
+	// Ignore `TrustBackedAssets` explicitly
+	StartsWith<TrustBackedAssetsPalletLocation>,
+	// Ignore original uniques
+	StartsWith<UniquesPalletLocation>,
+	// Ignore assets that start explicitly with our `GlobalConsensus(NetworkId)`, means:
+	// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
+	//   ..)}`
+	// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` won't be
+	//   accepted here
+	StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
+);
+
+/// `AssetId`/`AssetInstance` converter for `ForeignUniques`.
+pub type ForeignUniquesConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
+	FilterInvalidForeignAssets,
+	xcm::v3::AssetInstance,
+	xcm::v3::Location,
+>;
+
+/// Means for transacting foreign unique assets.
+pub type ForeignUniquesTransactor = UniqueInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	MatchInClassInstances<ForeignUniquesConvertedConcreteId>,
+	ForeignUniques,
+>;
+
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
-	(
-		// Ignore `TrustBackedAssets` explicitly
-		StartsWith<TrustBackedAssetsPalletLocation>,
-		// Ignore asset which starts explicitly with our `GlobalConsensus(NetworkId)`, means:
-		// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
-		//   ..)}
-		// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` wont
-		//   be accepted here
-		StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
-	),
+	FilterInvalidForeignAssets,
 	Balance,
 	xcm::v3::Location,
 >;
@@ -208,7 +227,8 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
-	UniquesTransactor,
+	LocalUniquesTransactor,
+	ForeignUniquesTransactor,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -338,7 +358,7 @@ pub type WaivedLocations = (
 /// - Sibling parachains' assets from where they originate (as `ForeignCreators`).
 pub type TrustedTeleporters = (
 	ConcreteAssetFromSystem<WestendLocation>,
-	IsForeignConcreteAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+	IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
 );
 
 pub struct XcmConfig;
@@ -351,7 +371,10 @@ impl xcm_executor::Config for XcmConfig {
 	// as reserve locations (we trust the Bridge Hub to relay the message that a reserve is being
 	// held). On Westend Asset Hub, we allow Rococo Asset Hub to act as reserve for any asset native
 	// to the Rococo or Ethereum ecosystems.
-	type IsReserve = (bridging::to_rococo::RococoOrEthereumAssetFromAssetHubRococo,);
+	type IsReserve = (
+		bridging::to_rococo::RococoOrEthereumAssetFromAssetHubRococo,
+		IsForeignNonFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+	);
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
