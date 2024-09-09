@@ -21,7 +21,7 @@ use super::{
 	WeightToFee, XcmpQueue,
 };
 use assets_common::{
-	matching::{FromNetwork, FromSiblingParachain, IsForeignConcreteAsset},
+	matching::{FromNetwork, FromSiblingParachain, IsForeignFungibleAsset},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
@@ -338,7 +338,7 @@ pub type WaivedLocations = (
 /// - Sibling parachains' assets from where they originate (as `ForeignCreators`).
 pub type TrustedTeleporters = (
 	ConcreteAssetFromSystem<TokenLocation>,
-	IsForeignConcreteAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+	IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
 );
 
 pub struct XcmConfig;
@@ -676,7 +676,7 @@ pub mod bridging {
 		}
 
 		pub type IsTrustedBridgedReserveLocationForForeignAsset =
-			IsForeignConcreteAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
+			IsForeignFungibleAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
 
 		impl Contains<(Location, Junction)> for UniversalAliases {
 			fn contains(alias: &(Location, Junction)) -> bool {
