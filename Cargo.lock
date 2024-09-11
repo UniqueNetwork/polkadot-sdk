@@ -5365,7 +5365,7 @@ dependencies = [
 
 [[package]]
 name = "frame-benchmarking-cli"
-version = "35.0.0"
+version = "35.0.1"
 dependencies = [
  "Inflector",
  "array-bytes 6.1.0",
@@ -5579,7 +5579,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural"
-version = "26.0.0"
+version = "26.0.1"
 dependencies = [
  "Inflector",
  "cfg-expr",
@@ -11093,6 +11093,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-xnft"
+version = "1.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "staging-xcm",
+ "staging-xcm-builder",
+ "staging-xcm-executor",
+]
+
+[[package]]
 name = "parachain-template-node"
 version = "0.1.0"
 dependencies = [
@@ -13253,7 +13272,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-sdk-frame"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "docify 0.2.7",
  "frame-executive",
@@ -15504,7 +15523,7 @@ dependencies = [
 
 [[package]]
 name = "sc-chain-spec"
-version = "30.0.0"
+version = "30.0.1"
 dependencies = [
  "array-bytes 6.1.0",
  "docify 0.2.7",
@@ -18221,7 +18240,7 @@ dependencies = [
 
 [[package]]
 name = "sp-api-proc-macro"
-version = "17.0.0"
+version = "17.0.1"
 dependencies = [
  "Inflector",
  "assert_matches",
@@ -19565,7 +19584,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-frame-rpc-support"
-version = "32.0.0"
+version = "32.0.1"
 dependencies = [
  "frame-support",
  "frame-system",

@@ -209,6 +209,7 @@ members = [
 	"polkadot/utils/remote-ext-tests/bags-list",
 	"polkadot/xcm",
 	"polkadot/xcm/pallet-xcm",
+	"polkadot/xcm/pallet-xnft",
 	"polkadot/xcm/pallet-xcm-benchmarks",
 	"polkadot/xcm/procedural",
 	"polkadot/xcm/xcm-builder",
