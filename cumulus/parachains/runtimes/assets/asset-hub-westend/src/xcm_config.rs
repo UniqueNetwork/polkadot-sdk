@@ -358,10 +358,7 @@ pub type WaivedLocations = (
 ///
 /// - WND with the parent Relay Chain and sibling system parachains; and
 /// - Sibling parachains' assets from where they originate (as `ForeignCreators`).
-pub type TrustedTeleporters = (
-	ConcreteAssetFromSystem<WestendLocation>,
-	IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
-);
+pub type TrustedTeleporters = (ConcreteAssetFromSystem<WestendLocation>,);
 
 /// Asset converter for pool assets.
 /// Used to convert one asset to another, when there is a pool available between the two.
@@ -398,6 +395,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = (
 		bridging::to_rococo::RococoAssetFromAssetHubRococo,
 		bridging::to_ethereum::EthereumAssetFromEthereum,
+		IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
 		IsForeignNonFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
 	);
 	type IsTeleporter = TrustedTeleporters;
