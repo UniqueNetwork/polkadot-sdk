@@ -10362,7 +10362,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -11929,25 +11928,6 @@ dependencies = [
  "sp-std",
  "staging-xcm",
  "staging-xcm-builder",
-]
-
-[[package]]
-name = "pallet-xnft"
-version = "1.0.0"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "staging-xcm",
- "staging-xcm-builder",
- "staging-xcm-executor",
 ]
 
 [[package]]
@@ -14207,6 +14187,7 @@ dependencies = [
  "pallet-core-fellowship",
  "pallet-delegated-staking",
  "pallet-democracy",
+ "pallet-derivatives",
  "pallet-dev-mode",
  "pallet-election-provider-multi-phase",
  "pallet-election-provider-support-benchmarking",

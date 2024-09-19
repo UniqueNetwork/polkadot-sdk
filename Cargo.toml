@@ -221,8 +221,8 @@ members = [
 	"polkadot/xcm",
 	"polkadot/xcm/docs",
 	"polkadot/xcm/pallet-xcm",
-	"polkadot/xcm/pallet-xnft",
 	"polkadot/xcm/pallet-xcm-benchmarks",
+	"polkadot/xcm/pallet-derivatives",
 	"polkadot/xcm/procedural",
 	"polkadot/xcm/xcm-builder",
 	"polkadot/xcm/xcm-executor",
@@ -962,19 +962,20 @@ pallet-transaction-payment-rpc-runtime-api = { path = "substrate/frame/transacti
 pallet-transaction-storage = { default-features = false, path = "substrate/frame/transaction-storage" }
 pallet-treasury = { path = "substrate/frame/treasury", default-features = false, version = "35.0.0" }
 pallet-tx-pause = { default-features = false, path = "substrate/frame/tx-pause" }
-pallet-uniques = { path = "substrate/frame/uniques", default-features = false, version = "36.0.0" }
-pallet-utility = { path = "substrate/frame/utility", default-features = false, version = "36.0.0" }
-pallet-vesting = { path = "substrate/frame/vesting", default-features = false, version = "36.0.0" }
-pallet-whitelist = { path = "substrate/frame/whitelist", default-features = false, version = "35.0.0" }
-pallet-xcm = { path = "polkadot/xcm/pallet-xcm", default-features = false, version = "15.0.0" }
-pallet-xcm-benchmarks = { path = "polkadot/xcm/pallet-xcm-benchmarks", default-features = false, version = "15.0.0" }
-pallet-xcm-bridge-hub = { path = "bridges/modules/xcm-bridge-hub", default-features = false, version = "0.10.0" }
-pallet-xcm-bridge-hub-router = { path = "bridges/modules/xcm-bridge-hub-router", default-features = false, version = "0.13.0" }
-parachain-info = { path = "cumulus/parachains/pallets/parachain-info", default-features = false, package = "staging-parachain-info", version = "0.15.0" }
-parachain-template-runtime = { path = "templates/parachain/runtime", version = "0.1.0" }
-parachains-common = { path = "cumulus/parachains/common", default-features = false, version = "15.0.0" }
-parachains-relay = { path = "bridges/relays/parachains", version = "0.1.0" }
-parachains-runtimes-test-utils = { path = "cumulus/parachains/runtimes/test-utils", default-features = false, version = "15.0.0" }
+pallet-uniques = { path = "substrate/frame/uniques", default-features = false }
+pallet-utility = { path = "substrate/frame/utility", default-features = false }
+pallet-vesting = { path = "substrate/frame/vesting", default-features = false }
+pallet-whitelist = { path = "substrate/frame/whitelist", default-features = false }
+pallet-xcm = { path = "polkadot/xcm/pallet-xcm", default-features = false }
+pallet-xcm-benchmarks = { path = "polkadot/xcm/pallet-xcm-benchmarks", default-features = false }
+pallet-xcm-bridge-hub = { path = "bridges/modules/xcm-bridge-hub", default-features = false }
+pallet-xcm-bridge-hub-router = { path = "bridges/modules/xcm-bridge-hub-router", default-features = false }
+pallet-derivatives = { path = "polkadot/xcm/pallet-derivatives", default-features = false }
+parachain-info = { path = "cumulus/parachains/pallets/parachain-info", default-features = false, package = "staging-parachain-info" }
+parachain-template-runtime = { path = "templates/parachain/runtime" }
+parachains-common = { path = "cumulus/parachains/common", default-features = false }
+parachains-relay = { path = "bridges/relays/parachains" }
+parachains-runtimes-test-utils = { path = "cumulus/parachains/runtimes/test-utils", default-features = false }
 parity-bytes = { version = "0.1.2", default-features = false }
 parity-db = { version = "0.4.12" }
 parity-util-mem = { version = "0.12.0" }
