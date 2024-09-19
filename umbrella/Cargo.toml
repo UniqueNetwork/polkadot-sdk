@@ -156,7 +156,7 @@ std = [
 	"pallet-xcm-bridge-hub-router?/std",
 	"pallet-xcm-bridge-hub?/std",
 	"pallet-xcm?/std",
-	"pallet-xnft?/std",
+	"pallet-derivatives?/std",
 	"parachains-common?/std",
 	"parachains-runtimes-test-utils?/std",
 	"polkadot-core-primitives?/std",
@@ -338,7 +338,7 @@ runtime-benchmarks = [
 	"pallet-xcm-bridge-hub-router?/runtime-benchmarks",
 	"pallet-xcm-bridge-hub?/runtime-benchmarks",
 	"pallet-xcm?/runtime-benchmarks",
-	"pallet-xnft?/runtime-benchmarks",
+	"pallet-derivatives?/runtime-benchmarks",
 	"parachains-common?/runtime-benchmarks",
 	"polkadot-cli?/runtime-benchmarks",
 	"polkadot-node-metrics?/runtime-benchmarks",
@@ -475,7 +475,7 @@ try-runtime = [
 	"pallet-xcm-bridge-hub-router?/try-runtime",
 	"pallet-xcm-bridge-hub?/try-runtime",
 	"pallet-xcm?/try-runtime",
-	"pallet-xnft?/try-runtime",
+	"pallet-derivatives?/try-runtime",
 	"polkadot-cli?/try-runtime",
 	"polkadot-omni-node-lib?/try-runtime",
 	"polkadot-runtime-common?/try-runtime",
@@ -1522,8 +1522,8 @@ default-features = false
 optional = true
 version = "0.16.0"
 
-[dependencies.pallet-xnft]
-path = "../polkadot/xcm/pallet-xnft"
+[dependencies.pallet-derivatives]
+path = "../polkadot/xcm/pallet-derivatives"
 default-features = false
 optional = true
 
