@@ -46,7 +46,7 @@ use frame_support::{
 		fungible, fungibles,
 		tokens::{imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, ConversionToAssetBalance},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
-		InstanceFilter, MapSuccess, TransformOrigin,
+		InstanceFilter, MapSuccess, TransformOrigin, PalletInfoAccess,
 	},
 	weights::{ConstantMultiplier, Weight, WeightToFee as _},
 	BoundedVec, PalletId,
@@ -91,7 +91,7 @@ pub use sp_runtime::BuildStorage;
 use assets_common::{foreign_creators::ForeignCreators, matching::FromSiblingParachain};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use xcm::{
-	latest::prelude::AssetId,
+	latest::prelude::{AssetId, Location, Junction, Xcm, Assets as XcmAssets},
 	prelude::{VersionedAssetId, VersionedAssets, VersionedLocation, VersionedXcm},
 };
 
@@ -702,17 +702,43 @@ impl cumulus_pallet_aura_ext::Config for Runtime {}
 
 parameter_types! {
 	/// The asset ID for the asset that we use to pay for message delivery fees.
-	pub FeeAssetId: AssetId = AssetId(xcm_config::WestendLocation::get());
+	pub WndFeeAssetId: AssetId = AssetId(xcm_config::WestendLocation::get());
+
+	pub UsdtFeeAssetId: AssetId = AssetId(Location::new(0, [
+		Junction::PalletInstance(<Assets as PalletInfoAccess>::index() as u8),
+		Junction::GeneralIndex(1984),
+	]));
+
 	/// The base fee for the message delivery fees.
 	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
-pub type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
-	FeeAssetId,
+pub type WndPriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
+	WndFeeAssetId,
 	BaseDeliveryFee,
 	TransactionByteFee,
 	XcmpQueue,
 >;
+
+pub type UsdtPriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
+	UsdtFeeAssetId,
+	BaseDeliveryFee,
+	TransactionByteFee,
+	XcmpQueue,
+>;
+
+pub struct DeliveryFees;
+impl polkadot_runtime_common::xcm_sender::PriceForMessageDelivery for DeliveryFees {
+	type Id = ParaId;
+
+	fn price_for_delivery(id: Self::Id, msg: &Xcm<()>) -> XcmAssets {
+		if id == 2002.into() || id == 2003.into() {
+			UsdtPriceForSiblingParachainDelivery::price_for_delivery(id, msg)
+		} else {
+			WndPriceForSiblingParachainDelivery::price_for_delivery(id, msg)
+		}
+	}
+}
 
 impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -728,7 +754,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
 	type WeightInfo = weights::cumulus_pallet_xcmp_queue::WeightInfo<Runtime>;
-	type PriceForSiblingDelivery = PriceForSiblingParachainDelivery;
+	type PriceForSiblingDelivery = DeliveryFees;
 }
 
 impl cumulus_pallet_xcmp_queue::migration::v5::V5Config for Runtime {

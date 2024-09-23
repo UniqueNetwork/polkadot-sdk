@@ -15,7 +15,7 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
+	CollatorSelection, WndFeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
 	ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
 	RuntimeOrigin, ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques,
 	WeightToFee, XcmpQueue, DerivativeCollections, DerivativeNfts, Nfts,
@@ -563,7 +563,7 @@ impl xcm_executor::Config for XcmConfig {
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
 pub type PriceForParentDelivery =
-	ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, ParachainSystem>;
+	ExponentialPrice<WndFeeAssetId, BaseDeliveryFee, TransactionByteFee, ParachainSystem>;
 
 /// For routing XCM messages which do not cross local consensus boundary.
 type LocalXcmRouter = (
