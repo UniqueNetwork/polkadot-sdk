@@ -43,8 +43,8 @@ use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	ord_parameter_types, parameter_types,
 	traits::{
-		fungible, fungibles,
-		tokens::{imbalance::ResolveAssetTo, nonfungibles_v2::Inspect},
+		fungible, fungibles::{self, InspectEnumerable},
+		tokens::{imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, ConversionToAssetBalance},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
 		InstanceFilter, MapSuccess, TransformOrigin, PalletInfoAccess,
 	},
@@ -64,10 +64,10 @@ use parachains_common::{
 	NORMAL_DISPATCH_RATIO,
 };
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, Get};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{AccountIdConversion, BlakeTwo256, Block as BlockT, Replace, Saturating, Verify},
+	traits::{AccountIdConversion, BlakeTwo256, Block as BlockT, Replace, Saturating, Verify, ConvertInto},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, Perbill, Permill, RuntimeDebug,
 };
@@ -88,7 +88,7 @@ pub use sp_runtime::BuildStorage;
 use assets_common::{foreign_creators::ForeignCreators, matching::FromSiblingParachain};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use xcm::{
-	latest::prelude::{AssetId, Location, Junction, Xcm, Assets as XcmAssets},
+	latest::prelude::{AssetId, Location, Junction, Xcm, Assets as XcmAssets, Fungibility, Asset},
 	prelude::{VersionedAssetId, VersionedAssets, VersionedLocation, VersionedXcm},
 };
 
@@ -274,6 +274,8 @@ impl pallet_assets_freezer::Config<AssetsFreezerInstance> for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+pub type DotToAssets = pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, TrustBackedAssetsInstance>;
+
 parameter_types! {
 	pub const AssetConversionPalletId: PalletId = PalletId(*b"py/ascon");
 	pub const LiquidityWithdrawalFee: Permill = Permill::from_percent(0);
@@ -437,6 +439,8 @@ impl pallet_assets_freezer::Config<ForeignAssetsFreezerInstance> for Runtime {
 	type RuntimeFreezeReason = RuntimeFreezeReason;
 	type RuntimeEvent = RuntimeEvent;
 }
+
+pub type DotToForeignAssets = pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, ForeignAssetsInstance>;
 
 parameter_types! {
 	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
@@ -729,10 +733,22 @@ impl polkadot_runtime_common::xcm_sender::PriceForMessageDelivery for DeliveryFe
 	type Id = ParaId;
 
 	fn price_for_delivery(id: Self::Id, msg: &Xcm<()>) -> XcmAssets {
-		if id == 2002.into() || id == 2003.into() {
-			UsdtPriceForSiblingParachainDelivery::price_for_delivery(id, msg)
+		let native_fees = WndPriceForSiblingParachainDelivery::price_for_delivery(id, msg);
+
+		let self_para_id = ParachainInfo::get();
+		if self_para_id == 2001.into() && (id == 2002.into() || id == 2003.into()) {
+			let Fungibility::Fungible(native_fee) = native_fees.into_inner()[0].fun else {
+				unreachable!();
+			};
+
+			let usdt_fee = DotToAssets::to_asset_balance(native_fee, 1984).unwrap();
+
+			XcmAssets::from(vec![Asset {
+				id: UsdtFeeAssetId::get(),
+				fun: usdt_fee.into(),
+			}])
 		} else {
-			WndPriceForSiblingParachainDelivery::price_for_delivery(id, msg)
+			native_fees
 		}
 	}
 }
@@ -1413,15 +1429,43 @@ impl_runtime_apis! {
 
 	impl xcm_runtime_apis::fees::XcmPaymentApi<Block> for Runtime {
 		fn query_acceptable_payment_assets(xcm_version: xcm::Version) -> Result<Vec<VersionedAssetId>, XcmPaymentApiError> {
-			let acceptable_assets = vec![AssetId(xcm_config::WestendLocation::get())];
+			let mut acceptable_assets = ForeignAssets::asset_ids()
+				.filter_map(|foreign_asset_id| Some(AssetId(foreign_asset_id.try_into().ok()?)))
+				.collect::<Vec<_>>();
+			acceptable_assets.push(AssetId(xcm_config::WestendLocation::get()));
+
+			let self_para_id = ParachainInfo::get();
+
+			if self_para_id == 2001.into() {
+				acceptable_assets.push(UsdtFeeAssetId::get());
+			}
+
 			PolkadotXcm::query_acceptable_payment_assets(xcm_version, acceptable_assets)
 		}
 
 		fn query_weight_to_asset_fee(weight: Weight, asset: VersionedAssetId) -> Result<u128, XcmPaymentApiError> {
+			let self_para_id = ParachainInfo::get();
+			let native_fee = WeightToFee::weight_to_fee(&weight);
+
 			match asset.try_as::<AssetId>() {
 				Ok(asset_id) if asset_id.0 == xcm_config::WestendLocation::get() => {
 					// for native token
-					Ok(WeightToFee::weight_to_fee(&weight))
+					Ok(native_fee)
+				},
+				Ok(asset_id) if self_para_id == 2001.into() && *asset_id == UsdtFeeAssetId::get() => {
+					let usdt_fee = DotToAssets::to_asset_balance(native_fee, 1984)
+						.map_err(|_| XcmPaymentApiError::WeightNotComputable)?;
+
+					Ok(usdt_fee)
+				},
+				Ok(asset_id) => {
+					let foreign_asset_id: xcm::v3::Location = asset_id.0.clone().try_into()
+						.map_err(|_| XcmPaymentApiError::VersionedConversionFailed)?;
+
+					let foreign_asset_fee = DotToForeignAssets::to_asset_balance(native_fee, foreign_asset_id)
+						.map_err(|_| XcmPaymentApiError::WeightNotComputable)?;
+
+					Ok(foreign_asset_fee)
 				},
 				Ok(asset_id) => {
 					log::trace!(target: "xcm::xcm_runtime_apis", "query_weight_to_asset_fee - unhandled asset_id: {asset_id:?}!");
