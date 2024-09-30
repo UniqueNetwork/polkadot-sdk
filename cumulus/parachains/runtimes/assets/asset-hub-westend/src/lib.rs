@@ -43,7 +43,7 @@ use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	ord_parameter_types, parameter_types,
 	traits::{
-		fungible, fungibles,
+		fungible, fungibles::{self, InspectEnumerable},
 		tokens::{imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, ConversionToAssetBalance},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
 		InstanceFilter, MapSuccess, TransformOrigin, PalletInfoAccess,
@@ -64,7 +64,7 @@ use parachains_common::{
 	NORMAL_DISPATCH_RATIO,
 };
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, Get};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -91,7 +91,7 @@ pub use sp_runtime::BuildStorage;
 use assets_common::{foreign_creators::ForeignCreators, matching::FromSiblingParachain};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use xcm::{
-	latest::prelude::{AssetId, Location, Junction, Xcm, Assets as XcmAssets},
+	latest::prelude::{AssetId, Location, Junction, Xcm, Assets as XcmAssets, Fungibility, Asset},
 	prelude::{VersionedAssetId, VersionedAssets, VersionedLocation, VersionedXcm},
 };
 
@@ -277,6 +277,8 @@ impl pallet_assets_freezer::Config<AssetsFreezerInstance> for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+pub type DotToAssets = pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, TrustBackedAssetsInstance>;
+
 parameter_types! {
 	pub const AssetConversionPalletId: PalletId = PalletId(*b"py/ascon");
 	pub const LiquidityWithdrawalFee: Permill = Permill::from_percent(0);
@@ -440,6 +442,8 @@ impl pallet_assets_freezer::Config<ForeignAssetsFreezerInstance> for Runtime {
 	type RuntimeFreezeReason = RuntimeFreezeReason;
 	type RuntimeEvent = RuntimeEvent;
 }
+
+pub type DotToForeignAssets = pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, ForeignAssetsInstance>;
 
 parameter_types! {
 	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
@@ -732,10 +736,22 @@ impl polkadot_runtime_common::xcm_sender::PriceForMessageDelivery for DeliveryFe
 	type Id = ParaId;
 
 	fn price_for_delivery(id: Self::Id, msg: &Xcm<()>) -> XcmAssets {
-		if id == 2002.into() || id == 2003.into() {
-			UsdtPriceForSiblingParachainDelivery::price_for_delivery(id, msg)
+		let native_fees = WndPriceForSiblingParachainDelivery::price_for_delivery(id, msg);
+
+		let self_para_id = ParachainInfo::get();
+		if self_para_id == 2001.into() && (id == 2002.into() || id == 2003.into()) {
+			let Fungibility::Fungible(native_fee) = native_fees.into_inner()[0].fun else {
+				unreachable!();
+			};
+
+			let usdt_fee = DotToAssets::to_asset_balance(native_fee, 1984).unwrap();
+
+			XcmAssets::from(vec![Asset {
+				id: UsdtFeeAssetId::get(),
+				fun: usdt_fee.into(),
+			}])
 		} else {
-			WndPriceForSiblingParachainDelivery::price_for_delivery(id, msg)
+			native_fees
 		}
 	}
 }
