@@ -32,6 +32,7 @@ extern crate alloc;
 
 use alloc::{vec, vec::Vec};
 use assets_common::{
+	fungible_conversion::MatchesLocation,
 	local_and_foreign_assets::{LocalFromLeft, TargetFromLeft},
 	AssetIdForTrustBackedAssetsConvert,
 };
@@ -47,7 +48,7 @@ use frame_support::{
 		fungible, fungibles,
 		tokens::{
 			imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, Fortitude::Polite,
-			Preservation::Expendable,
+			Preservation::Expendable, ConversionToAssetBalance,
 		},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
 		InstanceFilter, MapSuccess, Nothing, TransformOrigin,
@@ -72,7 +73,10 @@ use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160};
 use sp_runtime::{
 	generic, impl_opaque_keys,
-	traits::{AccountIdConversion, BlakeTwo256, Block as BlockT, Replace, Saturating, Verify},
+	traits::{
+		AccountIdConversion, BlakeTwo256, Block as BlockT, ConvertInto, Replace, MaybeEquivalence,
+		Saturating, Verify,
+	},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, Perbill, Permill, RuntimeDebug,
 };
@@ -1063,11 +1067,8 @@ construct_runtime!(
 		AssetsFreezer: pallet_assets_freezer::<Instance1> = 57,
 		ForeignAssetsFreezer: pallet_assets_freezer::<Instance2> = 58,
 		PoolAssetsFreezer: pallet_assets_freezer::<Instance3> = 59,
-<<<<<<< HEAD
 		Revive: pallet_revive = 60,
-=======
-		ForeignUniques: pallet_uniques::<Instance2> = 60,
->>>>>>> 9877fd70d69 (feat: support nft derivatives on westend asset hub)
+		ForeignUniques: pallet_uniques::<Instance2> = 61,
 
 		StateTrieMigration: pallet_state_trie_migration = 70,
 
@@ -1368,6 +1369,12 @@ mod benches {
 		[pallet_xcm_benchmarks::generic, XcmGeneric]
 	);
 }
+
+pub type NativeToAssets =
+	pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, TrustBackedAssetsInstance>;
+
+pub type NativeToForeignAssets =
+	pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, ForeignAssetsInstance>;
 
 impl_runtime_apis! {
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
