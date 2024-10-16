@@ -995,6 +995,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-collator-selection",
+ "pallet-derivatives",
  "pallet-message-queue",
  "pallet-multisig",
  "pallet-nft-fractionalization",
