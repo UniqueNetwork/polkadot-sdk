@@ -32,7 +32,6 @@ extern crate alloc;
 
 use alloc::{vec, vec::Vec};
 use assets_common::{
-	fungible_conversion::MatchesLocation,
 	local_and_foreign_assets::{LocalFromLeft, TargetFromLeft},
 	AssetIdForTrustBackedAssetsConvert,
 };
@@ -1050,6 +1049,8 @@ construct_runtime!(
 		// Bridge utilities.
 		ToRococoXcmRouter: pallet_xcm_bridge_hub_router::<Instance1> = 34,
 		MessageQueue: pallet_message_queue = 35,
+		DerivativeCollections: pallet_derivatives::<Instance1> = 36,
+		DerivativeNfts: pallet_derivatives::<Instance2> = 37,
 
 		// Handy utilities.
 		Utility: pallet_utility = 40,
