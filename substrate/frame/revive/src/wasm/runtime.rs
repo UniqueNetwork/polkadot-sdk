@@ -1536,11 +1536,13 @@ pub mod env {
 	/// See [`pallet_revive_uapi::HostFn::balance`].
 	#[api_version(0)]
 	fn balance(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
+		let mut bytes = [0u8; 32];
+		&self.ext.balance().to_little_endian(&mut bytes);
 		self.charge_gas(RuntimeCosts::Balance)?;
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&self.ext.balance().to_little_endian(),
+			&bytes,
 			false,
 			already_charged,
 		)?)
@@ -1558,10 +1560,12 @@ pub mod env {
 		self.charge_gas(RuntimeCosts::BalanceOf)?;
 		let mut address = H160::zero();
 		memory.read_into_buf(addr_ptr, address.as_bytes_mut())?;
+		let mut bytes = [0u8; 32];
+		&self.ext.balance_of(&address).to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&self.ext.balance_of(&address).to_little_endian(),
+			&bytes,
 			false,
 			already_charged,
 		)?)
@@ -1571,10 +1575,12 @@ pub mod env {
 	/// See [`pallet_revive_uapi::HostFn::chain_id`].
 	#[api_version(0)]
 	fn chain_id(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
+		let mut bytes = [0u8; 32];
+		&U256::from(<E::T as Config>::ChainId::get()).to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&U256::from(<E::T as Config>::ChainId::get()).to_little_endian(),
+			&bytes,
 			false,
 			|_| Some(RuntimeCosts::CopyToContract(32)),
 		)?)
@@ -1585,10 +1591,12 @@ pub mod env {
 	#[api_version(0)]
 	fn value_transferred(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
 		self.charge_gas(RuntimeCosts::ValueTransferred)?;
+		let mut bytes = [0u8; 32];
+		&self.ext.value_transferred().to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&self.ext.value_transferred().to_little_endian(),
+			&bytes,
 			false,
 			already_charged,
 		)?)
@@ -1599,10 +1607,12 @@ pub mod env {
 	#[api_version(0)]
 	fn now(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
 		self.charge_gas(RuntimeCosts::Now)?;
+		let mut bytes = [0u8; 32];
+		&self.ext.now().to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&self.ext.now().to_little_endian(),
+			&bytes,
 			false,
 			already_charged,
 		)?)
@@ -1613,10 +1623,12 @@ pub mod env {
 	#[api_version(0)]
 	fn minimum_balance(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
 		self.charge_gas(RuntimeCosts::MinimumBalance)?;
+		let mut bytes = [0u8; 32];
+		&self.ext.minimum_balance().to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&self.ext.minimum_balance().to_little_endian(),
+			&bytes,
 			false,
 			already_charged,
 		)?)
@@ -1667,10 +1679,12 @@ pub mod env {
 	#[api_version(0)]
 	fn block_number(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
 		self.charge_gas(RuntimeCosts::BlockNumber)?;
+		let mut bytes = [0u8; 32];
+		&self.ext.block_number().to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&self.ext.block_number().to_little_endian(),
+			&bytes,
 			false,
 			already_charged,
 		)?)
@@ -2025,10 +2039,12 @@ pub mod env {
 	/// See [`pallet_revive_uapi::HostFn::return_data_size`].
 	#[api_version(0)]
 	fn return_data_size(&mut self, memory: &mut M, out_ptr: u32) -> Result<(), TrapReason> {
+		let mut bytes = [0u8; 32];
+		U256::from(self.ext.last_frame_output().data.len()).to_little_endian(&mut bytes);
 		Ok(self.write_fixed_sandbox_output(
 			memory,
 			out_ptr,
-			&U256::from(self.ext.last_frame_output().data.len()).to_little_endian(),
+			&bytes,
 			false,
 			|len| Some(RuntimeCosts::CopyToContract(len)),
 		)?)
