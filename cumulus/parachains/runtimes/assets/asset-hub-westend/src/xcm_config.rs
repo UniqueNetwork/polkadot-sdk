@@ -30,7 +30,7 @@ use frame_support::{
 	traits::{
 		tokens::{
 			imbalance::{ResolveAssetTo, ResolveTo},
-			asset_ops::{Create, common_asset_kinds::Instance, common_strategies::{Owned, DeriveAndReportId}},
+			asset_ops::{Create, common_strategies::{Owned, DeriveAndReportId}},
 		},
 		ConstU32, Contains, Equals, Everything, Nothing, PalletInfoAccess,
 	},
@@ -191,13 +191,15 @@ pub type ForeignUniquesTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	MatchInClassInstances<ForeignUniquesConvertedConcreteId>,
-	ForeignUniques,
+	pallet_uniques::asset_ops::Item<ForeignUniques>,
 >;
 
 /// Matcher for converting `ClassId`/`InstanceId` into a nfts asset.
 pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPalletLocation>;
 
-type NftsStash = SimpleStash<TreasuryAccount, Nfts>;
+type NftsOps = pallet_nfts::asset_ops::Item<Nfts>;
+
+type NftsStashOps = SimpleStash<TreasuryAccount, NftsOps>;
 
 /// Matches NFTs minted on this chain
 /// and which do not correspond to any foreign NFT.
@@ -216,7 +218,7 @@ type NftsTransactor = UniqueInstancesAdapter<
 	AccountId,
 	LocationToAccountId,
 	(OriginalNftsMatcher, DerivativeNftsMatcher),
-	UniqueInstancesOps<RestoreOnCreate<NftsStash>, Nfts, StashOnDestroy<NftsStash>>,
+	UniqueInstancesOps<RestoreOnCreate<NftsStashOps>, NftsOps, StashOnDestroy<NftsStashOps>>,
 >;
 
 // pub struct CreateDerivativeNft;

@@ -1,10 +1,12 @@
-use crate::{types::asset_strategies::*, *};
+use core::marker::PhantomData;
+
+use crate::{types::asset_strategies::*, *, Collection as CollectionStorage};
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
 		tokens::asset_ops::{
-			common_asset_kinds::Class, common_strategies::*, AssetDefinition, Create, Destroy,
+			common_strategies::*, AssetDefinition, Create, Destroy,
 			InspectMetadata, UpdateMetadata,
 		},
 		EnsureOrigin,
@@ -15,22 +17,24 @@ use frame_system::ensure_signed;
 use sp_core::Get;
 use sp_runtime::DispatchError;
 
-impl<T: Config<I>, I: 'static> AssetDefinition<Class> for Pallet<T, I> {
+pub struct Collection<PalletInstance>(PhantomData<PalletInstance>);
+
+impl<T: Config<I>, I: 'static> AssetDefinition for Collection<Pallet<T, I>> {
 	type Id = T::CollectionId;
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, Ownership<T::AccountId>> for Pallet<T, I> {
+impl<T: Config<I>, I: 'static> InspectMetadata<Ownership<T::AccountId>> for Collection<Pallet<T, I>> {
 	fn inspect_metadata(
 		collection: &Self::Id,
 		_ownership: Ownership<T::AccountId>,
 	) -> Result<T::AccountId, DispatchError> {
-		Collection::<T, I>::get(collection)
+		CollectionStorage::<T, I>::get(collection)
 			.map(|a| a.owner)
 			.ok_or(Error::<T, I>::UnknownCollection.into())
 	}
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Class, Bytes> for Pallet<T, I> {
+impl<T: Config<I>, I: 'static> InspectMetadata<Bytes> for Collection<Pallet<T, I>> {
 	fn inspect_metadata(collection: &Self::Id, _bytes: Bytes) -> Result<Vec<u8>, DispatchError> {
 		CollectionMetadataOf::<T, I>::get(collection)
 			.map(|collection_metadata| collection_metadata.data.into())
@@ -38,22 +42,22 @@ impl<T: Config<I>, I: 'static> InspectMetadata<Class, Bytes> for Pallet<T, I> {
 	}
 }
 
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes> for Pallet<T, I> {
+impl<T: Config<I>, I: 'static> UpdateMetadata<Bytes> for Collection<Pallet<T, I>> {
 	fn update_metadata(
 		collection: &Self::Id,
 		_bytes: Bytes,
 		update: Option<&[u8]>,
 	) -> DispatchResult {
-		Self::do_update_collection_metadata(
+		<Pallet<T, I>>::do_update_collection_metadata(
 			None,
 			*collection,
-			update.map(|data| Self::construct_metadata(data.to_vec())).transpose()?,
+			update.map(|data| <Pallet<T, I>>::construct_metadata(data.to_vec())).transpose()?,
 		)
 	}
 }
 
-impl<T: Config<I>, I: 'static> UpdateMetadata<Class, WithOrigin<T::RuntimeOrigin, Bytes>>
-	for Pallet<T, I>
+impl<T: Config<I>, I: 'static> UpdateMetadata<WithOrigin<T::RuntimeOrigin, Bytes>>
+	for Collection<Pallet<T, I>>
 {
 	fn update_metadata(
 		collection: &Self::Id,
@@ -66,16 +70,16 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Class, WithOrigin<T::RuntimeOrigin
 			.map(|_| None)
 			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
 
-		Self::do_update_collection_metadata(
+		<Pallet<T, I>>::do_update_collection_metadata(
 			maybe_check_origin,
 			*collection,
-			update.map(|data| Self::construct_metadata(data.to_vec())).transpose()?,
+			update.map(|data| <Pallet<T, I>>::construct_metadata(data.to_vec())).transpose()?,
 		)
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute<'a>>>
-	for Pallet<T, I>
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Bytes<RegularAttribute<'a>>>
+	for Collection<Pallet<T, I>>
 {
 	fn inspect_metadata(
 		collection: &Self::Id,
@@ -88,7 +92,7 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute
 			collection,
 			item,
 			AttributeNamespace::CollectionOwner,
-			Self::construct_attribute_key(attribute.to_vec())?,
+			<Pallet<T, I>>::construct_attribute_key(attribute.to_vec())?,
 		))
 		.map(|a| a.0.into())
 		.ok_or(Error::<T, I>::AttributeNotFound.into())
@@ -96,7 +100,7 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<RegularAttribute
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	UpdateMetadata<Class, WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>> for Pallet<T, I>
+	UpdateMetadata<WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>> for Collection<Pallet<T, I>>
 {
 	fn update_metadata(
 		collection: &Self::Id,
@@ -107,15 +111,15 @@ impl<'a, T: Config<I>, I: 'static>
 		let namespace = AttributeNamespace::CollectionOwner;
 
 		let WithOrigin(origin, Bytes(RegularAttribute(attribute))) = bytes;
-		let attribute = Self::construct_attribute_key(attribute.to_vec())?;
+		let attribute = <Pallet<T, I>>::construct_attribute_key(attribute.to_vec())?;
 		let update =
-			update.map(|data| Self::construct_attribute_value(data.to_vec())).transpose()?;
+			update.map(|data| <Pallet<T, I>>::construct_attribute_value(data.to_vec())).transpose()?;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
 			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
 
-		Self::do_update_attribute(
+		<Pallet<T, I>>::do_update_attribute(
 			maybe_check_origin,
 			*collection,
 			maybe_item,
@@ -126,8 +130,8 @@ impl<'a, T: Config<I>, I: 'static>
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<SystemAttribute<'a>>>
-	for Pallet<T, I>
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<Bytes<SystemAttribute<'a>>>
+	for Collection<Pallet<T, I>>
 {
 	fn inspect_metadata(
 		collection: &Self::Id,
@@ -146,8 +150,8 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, Bytes<SystemAttribute<
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes<SystemAttribute<'a>>>
-	for Pallet<T, I>
+impl<'a, T: Config<I>, I: 'static> UpdateMetadata<Bytes<SystemAttribute<'a>>>
+	for Collection<Pallet<T, I>>
 {
 	fn update_metadata(
 		collection: &Self::Id,
@@ -158,16 +162,16 @@ impl<'a, T: Config<I>, I: 'static> UpdateMetadata<Class, Bytes<SystemAttribute<'
 		let namespace = AttributeNamespace::Pallet;
 
 		let Bytes(SystemAttribute(attribute)) = bytes;
-		let attribute = Self::construct_attribute_key(attribute.to_vec())?;
+		let attribute = <Pallet<T, I>>::construct_attribute_key(attribute.to_vec())?;
 		let update =
-			update.map(|data| Self::construct_attribute_value(data.to_vec())).transpose()?;
+			update.map(|data| <Pallet<T, I>>::construct_attribute_value(data.to_vec())).transpose()?;
 
-		Self::do_update_attribute(None, *collection, maybe_item, namespace, attribute, update)
+		<Pallet<T, I>>::do_update_attribute(None, *collection, maybe_item, namespace, attribute, update)
 	}
 }
 
-impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::AccountId>>
-	for Pallet<T, I>
+impl<'a, T: Config<I>, I: 'static> InspectMetadata<HasRole<'a, T::AccountId>>
+	for Collection<Pallet<T, I>>
 {
 	fn inspect_metadata(
 		collection: &Self::Id,
@@ -175,13 +179,13 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Class, HasRole<'a, T::Account
 	) -> Result<bool, DispatchError> {
 		let HasRole { who, role } = has_role;
 
-		Ok(Self::has_role(collection, who, role))
+		Ok(<Pallet<T, I>>::has_role(collection, who, role))
 	}
 }
 
 impl<T: Config<I>, I: 'static>
-	Create<Class, Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
-	for Pallet<T, I>
+	Create<Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
+	for Collection<Pallet<T, I>>
 {
 	fn create(
 		strategy: Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
@@ -192,7 +196,7 @@ impl<T: Config<I>, I: 'static>
 			.or(T::CollectionId::initial_value())
 			.ok_or(Error::<T, I>::UnknownCollection)?;
 
-		Self::do_create_collection(
+		<Pallet<T, I>>::do_create_collection(
 			collection,
 			owner.clone(),
 			admin.clone(),
@@ -201,7 +205,7 @@ impl<T: Config<I>, I: 'static>
 			Event::Created { collection, creator: owner, owner: admin },
 		)?;
 
-		Self::set_next_collection_id(collection);
+		<Pallet<T, I>>::set_next_collection_id(collection);
 
 		Ok(collection)
 	}
@@ -209,12 +213,11 @@ impl<T: Config<I>, I: 'static>
 
 impl<T: Config<I>, I: 'static>
 	Create<
-		Class,
 		WithOrigin<
 			T::RuntimeOrigin,
 			Adminable<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
 		>,
-	> for Pallet<T, I>
+	> for Collection<Pallet<T, I>>
 {
 	fn create(
 		strategy: WithOrigin<
@@ -246,13 +249,13 @@ impl<T: Config<I>, I: 'static>
 			);
 		}
 
-		<Self as Create<_, _>>::create(creation_strategy)
+		Self::create(creation_strategy)
 	}
 }
 
 impl<T: Config<I>, I: 'static>
-	Create<Class, Owned<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
-	for Pallet<T, I>
+	Create<Owned<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>>
+	for Collection<Pallet<T, I>>
 {
 	fn create(
 		strategy: Owned<T::AccountId, AutoId<T::CollectionId>, CollectionConfigFor<T, I>>,
@@ -260,7 +263,7 @@ impl<T: Config<I>, I: 'static>
 		let Owned { owner, id_assignment, config, .. } = strategy;
 		let admin = owner.clone();
 
-		<Self as Create<_, _>>::create(Adminable::new_configured(
+		Self::create(Adminable::new_configured(
 			owner,
 			admin,
 			id_assignment,
@@ -269,19 +272,19 @@ impl<T: Config<I>, I: 'static>
 	}
 }
 
-impl<T: Config<I>, I: 'static> Destroy<Class, WithWitness<DestroyWitness>> for Pallet<T, I> {
+impl<T: Config<I>, I: 'static> Destroy<WithWitness<DestroyWitness>> for Collection<Pallet<T, I>> {
 	fn destroy(
 		collection: &Self::Id,
 		strategy: WithWitness<DestroyWitness>,
 	) -> Result<DestroyWitness, DispatchError> {
 		let WithWitness(witness) = strategy;
 
-		Self::do_destroy_collection(*collection, witness, None)
+		<Pallet<T, I>>::do_destroy_collection(*collection, witness, None)
 	}
 }
 
 impl<T: Config<I>, I: 'static>
-	Destroy<Class, WithOrigin<T::RuntimeOrigin, WithWitness<DestroyWitness>>> for Pallet<T, I>
+	Destroy<WithOrigin<T::RuntimeOrigin, WithWitness<DestroyWitness>>> for Collection<Pallet<T, I>>
 {
 	fn destroy(
 		collection: &Self::Id,
@@ -293,6 +296,6 @@ impl<T: Config<I>, I: 'static>
 			.map(|_| None)
 			.or_else(|origin| ensure_signed(origin).map(Some).map_err(DispatchError::from))?;
 
-		Self::do_destroy_collection(*collection, witness, maybe_check_owner)
+		<Pallet<T, I>>::do_destroy_collection(*collection, witness, maybe_check_owner)
 	}
 }
