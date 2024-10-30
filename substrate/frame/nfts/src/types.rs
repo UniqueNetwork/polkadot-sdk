@@ -362,7 +362,7 @@ pub enum PalletAttributes<CollectionId> {
 
 /// Collection's configuration.
 #[derive(
-	Clone, Copy, Decode, Default, Encode, MaxEncodedLen, PartialEq, RuntimeDebug, TypeInfo,
+	Clone, Copy, Decode, Default, Encode, MaxEncodedLen, PartialEq, Eq, RuntimeDebug, TypeInfo,
 )]
 pub struct CollectionConfig<Price, BlockNumber, CollectionId> {
 	/// Collection's settings.

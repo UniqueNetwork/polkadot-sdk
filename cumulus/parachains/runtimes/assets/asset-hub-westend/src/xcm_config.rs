@@ -25,28 +25,28 @@ use assets_common::{
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
-	parameter_types,
-	pallet_prelude::*,
-	traits::{
+	pallet_prelude::*, parameter_types, traits::{
 		tokens::{
-			imbalance::{ResolveAssetTo, ResolveTo},
-			asset_ops::{Create, common_strategies::{Owned, DeriveAndReportId}},
+			asset_ops::{common_strategies::{DeriveAndReportId, AutoId, Owned, PredefinedId}, AssetIdOf, Create, AssetDefinition}, imbalance::{ResolveAssetTo, ResolveTo}
 		},
 		ConstU32, Contains, Equals, Everything, Nothing, PalletInfoAccess,
-	},
+	}
 };
-use frame_system::EnsureRoot;
+use frame_system::{EnsureNever, EnsureRoot};
 use pallet_xcm::XcmPassthrough;
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
 		ConcreteAssetFromSystem, RelayOrOtherSystemParachains,
 	},
-	TREASURY_PALLET_ID, CollectionId, ItemId
+	TREASURY_PALLET_ID, CollectionId, ItemId, BlockNumber
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
-use sp_runtime::traits::{AccountIdConversion, ConvertInto};
+use sp_runtime::{
+	traits::{AccountIdConversion, ConvertInto},
+	ArithmeticError,
+};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	unique_instances::{
@@ -59,6 +59,8 @@ use xcm_builder::{
 		UniqueInstancesOps,
 		RestoreOnCreate,
 		StashOnDestroy,
+		DerivativesRegistry,
+		DerivativesExtra,
 	}, AccountId32Aliases, AllowExplicitUnpaidExecutionFrom,
 	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry, DescribeFamily,
@@ -221,45 +223,60 @@ type NftsTransactor = UniqueInstancesAdapter<
 	UniqueInstancesOps<RestoreOnCreate<NftsStashOps>, NftsOps, StashOnDestroy<NftsStashOps>>,
 >;
 
-// pub struct CreateDerivativeNft;
-// impl Create<
-// 	Instance,
-// 	Owned<
-// 		AccountId,
-// 		DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
-// 	>
-// > for CreateDerivativeNft {
-// 	fn create(
-// 		strategy: Owned<
-// 			AccountId,
-// 			DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
-// 		>
-// 	) -> Result<(CollectionId, ItemId), DispatchError> {
-// 		let Owned {
-// 			owner,
-// 			id_assignment,
-// 			..
-// 		} = strategy;
-// 		let (asset_id, asset_instance) = id_assignment.params;
+pub struct CreateDerivativeNft;
+impl AssetDefinition for CreateDerivativeNft {
+	type Id = AssetIdOf<NftsOps>;
+}
+impl Create<
+	Owned<
+		AccountId,
+		DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
+	>
+> for CreateDerivativeNft {
+	fn create(
+		strategy: Owned<
+			AccountId,
+			DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
+		>
+	) -> Result<(CollectionId, ItemId), DispatchError> {
+		let Owned {
+			owner,
+			id_assignment,
+			..
+		} = strategy;
+		let ref nonfungible_asset @ (
+			ref asset_id,
+			..
+		) = id_assignment.params;
 
-// 		let derivative_collection = DerivativeCollections::get_derivative(&asset_id)
-// 			.ok_or(DerivativeCollectionsError::DerivativeNotFound)?;
+		let derivative_id = DerivativeCollections::get_derivative(asset_id)
+			.ok_or(DerivativeCollectionsError::DerivativeNotFound)?;
 
-// 		// TODO modify the last token id of the derivative collection.
+		let last_item_id = DerivativeCollections::get_derivative_extra(&derivative_id)
+			.unwrap_or_default();
 
-// 		// <Nfts as Create<Instance, _>>::create(Owned {
-// 		// 	owner,
-// 		// 	id_assignment: DeriveAndReportId::from()
-// 		// })
+		let nft_id = (derivative_id, last_item_id);
 
-// 		todo!()
-// 	}
-// }
-// type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
-// 	AccountId,
-// 	LocationToAccountId,
+		NftsOps::create(Owned::new(
+			owner,
+			PredefinedId::from(nft_id),
+		))?;
 
-// >;
+		DerivativeNfts::try_register_derivative(&nonfungible_asset, &nft_id)?;
+
+		let new_last_item_id = last_item_id.checked_add(1)
+			.ok_or(DispatchError::Arithmetic(ArithmeticError::Overflow))?;
+
+		DerivativeCollections::set_derivative_extra(&derivative_id, Some(new_last_item_id))?;
+
+		Ok(nft_id)
+	}
+}
+type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
+	AccountId,
+	LocationToAccountId,
+	CreateDerivativeNft,
+>;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
@@ -311,9 +328,10 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
+	NftsTransactor,
+	NftDerivativesRegistrar,
 	LocalUniquesTransactor,
 	ForeignUniquesTransactor,
-	NftsTransactor,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -599,18 +617,38 @@ impl cumulus_pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
-#[derive(Encode, Decode, Eq, Debug, Clone, PartialEq, TypeInfo, MaxEncodedLen)]
-pub struct DerivativeCollection {
-	collection_id: CollectionId,
-	last_nft_id: ItemId,
-}
-
 type DerivativeCollectionsError = pallet_derivatives::Error<Runtime, pallet_derivatives::Instance1>;
 impl pallet_derivatives::Config<pallet_derivatives::Instance1> for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
 	type Original = AssetId;
-	type Derivative = DerivativeCollection;
+	type Derivative = CollectionId;
+
+	// the last item ID within the derivative collection
+	type DerivativeExtra = ItemId;
+
+	type ExtrinsicsConfig = DerivativeCollectionsExtrinsics;
+}
+
+pub struct DerivativeCollectionsExtrinsics;
+impl pallet_derivatives::ExtrinsicsConfig<RuntimeOrigin, CollectionId> for DerivativeCollectionsExtrinsics {
+	type CreateOrigin = EnsureRoot<AccountId>;
+	type DestroyOrigin = EnsureNever<()>;
+
+	type DerivativeCreateParams = Owned<
+		AccountId,
+		AutoId<CollectionId>,
+		pallet_nfts::CollectionConfig<
+			Balance,
+			BlockNumber,
+			CollectionId,
+		>,
+	>;
+
+	type DerivativeCreateOp = pallet_nfts::asset_ops::Collection<Nfts>;
+	type DerivativeDestroyOp = pallet_derivatives::DerivativeAlwaysErrOps<CollectionId>;
+
+	type WeightInfo = pallet_derivatives::TestWeightInfo;
 }
 
 impl pallet_derivatives::Config<pallet_derivatives::Instance2> for Runtime {
@@ -618,6 +656,9 @@ impl pallet_derivatives::Config<pallet_derivatives::Instance2> for Runtime {
 
 	type Original = NonFungibleAsset;
 	type Derivative = (CollectionId, ItemId);
+
+	type DerivativeExtra = ();
+	type ExtrinsicsConfig = ();
 }
 
 pub type ForeignCreatorsSovereignAccountOf = (
