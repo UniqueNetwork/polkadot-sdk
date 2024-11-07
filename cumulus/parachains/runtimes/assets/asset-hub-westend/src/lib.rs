@@ -45,15 +45,13 @@ use frame_support::{
 	traits::{
 		fungible, fungibles,
 		tokens::{
-			asset_ops::{
-				common_asset_kinds::Instance, common_strategies::Bytes, AssetDefinition,
-				InspectMetadata,
-			},
+			asset_ops::{common_strategies::Bytes, AssetDefinition, AssetIdOf, InspectMetadata},
 			imbalance::ResolveAssetTo,
 			nonfungibles_v2::Inspect,
+			ConversionToAssetBalance,
 		},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
-		InstanceFilter, TransformOrigin,
+		InstanceFilter, MapSuccess, TransformOrigin,
 	},
 	weights::{ConstantMultiplier, Weight, WeightToFee as _},
 	BoundedVec, PalletId,
@@ -872,10 +870,10 @@ parameter_types! {
 }
 
 pub struct FractionalizedNfts;
-impl AssetDefinition<Instance> for FractionalizedNfts {
-	type Id = <Nfts as AssetDefinition<Instance>>::Id;
+impl AssetDefinition for FractionalizedNfts {
+	type Id = AssetIdOf<pallet_nfts::asset_ops::Item<Nfts>>;
 }
-impl InspectMetadata<Instance, Bytes<FractionalizedName>> for FractionalizedNfts {
+impl InspectMetadata<Bytes<FractionalizedName>> for FractionalizedNfts {
 	fn inspect_metadata(
 		(collection_id, item_id): &Self::Id,
 		_frac_name: Bytes<FractionalizedName>,
@@ -883,7 +881,7 @@ impl InspectMetadata<Instance, Bytes<FractionalizedName>> for FractionalizedNfts
 		Ok(format!("Frac {collection_id}-{item_id}").into_bytes())
 	}
 }
-impl InspectMetadata<Instance, Bytes<FractionalizedSymbol>> for FractionalizedNfts {
+impl InspectMetadata<Bytes<FractionalizedSymbol>> for FractionalizedNfts {
 	fn inspect_metadata(
 		_instance_id: &Self::Id,
 		_frac_name: Bytes<FractionalizedSymbol>,
@@ -899,8 +897,8 @@ impl pallet_nft_fractionalization::Config for Runtime {
 	type AssetBalance = <Self as pallet_balances::Config>::Balance;
 	type AssetId = <Self as pallet_assets::Config<TrustBackedAssetsInstance>>::AssetId;
 	type Assets = Assets;
-	type NftId = <Nfts as AssetDefinition<Instance>>::Id;
-	type Nfts = Nfts;
+	type NftId = AssetIdOf<pallet_nfts::asset_ops::Item<Nfts>>;
+	type Nfts = pallet_nfts::asset_ops::Item<Nfts>;
 	type FractionalizedNfts = FractionalizedNfts;
 	type PalletId = NftFractionalizationPalletId;
 	type WeightInfo = pallet_nft_fractionalization::weights::SubstrateWeight<Runtime>;

@@ -72,7 +72,6 @@ pub mod pallet {
 			},
 			tokens::{
 				asset_ops::{
-					common_asset_kinds::Instance,
 					common_strategies::{Bytes, CanTransfer, JustDo, Ownership},
 					AssetDefinition, InspectMetadata, Transfer, UpdateMetadata,
 				},
@@ -126,14 +125,14 @@ pub mod pallet {
 			+ MetadataDeposit<DepositOf<Self>>;
 
 		/// Registry for minted NFTs.
-		type Nfts: AssetDefinition<Instance, Id = Self::NftId>
-			+ InspectMetadata<Instance, Ownership<Self::AccountId>>
-			+ UpdateMetadata<Instance, CanTransfer>
-			+ Transfer<Instance, JustDo<Self::AccountId>>;
+		type Nfts: AssetDefinition<Id = Self::NftId>
+			+ InspectMetadata<Ownership<Self::AccountId>>
+			+ UpdateMetadata<CanTransfer>
+			+ Transfer<JustDo<Self::AccountId>>;
 
-		type FractionalizedNfts: AssetDefinition<Instance, Id = Self::NftId>
-			+ InspectMetadata<Instance, Bytes<FractionalizedName>>
-			+ InspectMetadata<Instance, Bytes<FractionalizedSymbol>>;
+		type FractionalizedNfts: AssetDefinition<Id = Self::NftId>
+			+ InspectMetadata<Bytes<FractionalizedName>>
+			+ InspectMetadata<Bytes<FractionalizedSymbol>>;
 
 		/// The pallet's id, used for deriving its sovereign account ID.
 		#[pallet::constant]
