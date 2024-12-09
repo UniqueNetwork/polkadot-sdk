@@ -362,7 +362,7 @@ pub enum PalletAttributes<CollectionId> {
 
 /// Collection's configuration.
 #[derive(
-	Clone, Copy, Decode, Default, Encode, MaxEncodedLen, PartialEq, RuntimeDebug, TypeInfo,
+	Clone, Copy, Decode, Default, Encode, MaxEncodedLen, PartialEq, Eq, RuntimeDebug, TypeInfo,
 )]
 pub struct CollectionConfig<Price, BlockNumber, CollectionId> {
 	/// Collection's settings.
@@ -545,4 +545,29 @@ pub struct PreSignedAttributes<CollectionId, ItemId, AccountId, Deadline> {
 	pub(super) namespace: AttributeNamespace<AccountId>,
 	/// A deadline for the signature.
 	pub(super) deadline: Deadline,
+}
+
+pub mod asset_strategies {
+	use super::*;
+	use frame_support::traits::tokens::asset_ops::{
+		MetadataInspectStrategy, MetadataUpdateStrategy,
+	};
+
+	pub struct RegularAttribute<'a>(pub &'a [u8]);
+
+	pub struct SystemAttribute<'a>(pub &'a [u8]);
+
+	pub struct CustomAttribute<'a, AccountId>(pub &'a AccountId, pub &'a [u8]);
+
+	pub struct HasRole<'a, AccountId> {
+		pub who: &'a AccountId,
+		pub role: CollectionRole,
+	}
+	impl<'a, AccountId> MetadataInspectStrategy for HasRole<'a, AccountId> {
+		type Value = bool;
+	}
+	impl<'a, AccountId> MetadataUpdateStrategy for HasRole<'a, AccountId> {
+		type Update<'u> = bool;
+		type Success = ();
+	}
 }

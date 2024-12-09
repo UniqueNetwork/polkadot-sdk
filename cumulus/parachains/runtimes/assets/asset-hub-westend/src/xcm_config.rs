@@ -15,47 +15,63 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ParachainInfo,
-	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
-	ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue,
+	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
+	ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeOrigin, ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques,
+	WeightToFee, XcmpQueue, DerivativeCollections, DerivativeNfts, Nfts,
 };
 use assets_common::{
-	matching::{FromSiblingParachain, IsForeignConcreteAsset},
+	matching::{FromSiblingParachain, IsForeignFungibleAsset, IsForeignNonFungibleAsset},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
-	parameter_types,
-	traits::{
-		tokens::imbalance::{ResolveAssetTo, ResolveTo},
+	pallet_prelude::*, parameter_types, traits::{
+		tokens::{
+			asset_ops::{common_strategies::{DeriveAndReportId, AutoId, Owned, PredefinedId}, AssetIdOf, Create, AssetDefinition}, imbalance::{ResolveAssetTo, ResolveTo}
+		},
 		ConstU32, Contains, Equals, Everything, Nothing, PalletInfoAccess,
-	},
+	}
 };
-use frame_system::EnsureRoot;
+use frame_system::{EnsureNever, EnsureRoot};
 use pallet_xcm::XcmPassthrough;
 use parachains_common::{
 	xcm_config::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
 		ConcreteAssetFromSystem, RelayOrOtherSystemParachains,
 	},
-	TREASURY_PALLET_ID,
+	TREASURY_PALLET_ID, CollectionId, ItemId, BlockNumber
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
-use sp_runtime::traits::{AccountIdConversion, ConvertInto};
+use sp_runtime::{
+	traits::{AccountIdConversion, ConvertInto},
+	ArithmeticError,
+};
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
-	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	DenyReserveTransferToRelayChain, DenyThenTry, DescribeFamily, DescribePalletTerminal,
-	EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter,
-	GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete, LocalMint,
-	NetworkExportTableItem, NoChecking, NonFungiblesAdapter, ParentAsSuperuser, ParentIsPreset,
-	RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, StartsWith,
-	StartsWithExplicitGlobalConsensus, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
-	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
-	XcmFeeToAccount,
+	unique_instances::{
+		UniqueInstancesAdapter,
+		UniqueInstancesDepositAdapter,
+		NonFungibleAsset,
+		SimpleStash,
+		EnsureNotDerivativeInstance,
+		MatchDerivativeInstances,
+		UniqueInstancesOps,
+		RestoreOnCreate,
+		StashOnDestroy,
+		DerivativesRegistry,
+		DerivativesExtra,
+	}, AccountId32Aliases, AllowExplicitUnpaidExecutionFrom,
+	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry, DescribeFamily,
+	DescribePalletTerminal, EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter,
+	FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete,
+	LocalMint, MatchInClassInstances, NetworkExportTableItem, NoChecking, ParentAsSuperuser,
+	ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, StartsWith, StartsWithExplicitGlobalConsensus, TakeWeightCredit,
+	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
+	XcmFeeManagerFromComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -78,6 +94,8 @@ parameter_types! {
 		PalletInstance(<PoolAssets as PalletInfoAccess>::index() as u8).into();
 	pub UniquesPalletLocation: Location =
 		PalletInstance(<Uniques as PalletInfoAccess>::index() as u8).into();
+	pub NftsPalletLocation: Location =
+		PalletInstance(<Nfts as PalletInfoAccess>::index() as u8).into();
 	pub CheckingAccount: AccountId = PolkadotXcm::check_account();
 	pub StakingPot: AccountId = CollatorSelection::account_id();
 	pub TreasuryAccount: AccountId = TREASURY_PALLET_ID.into_account_truncating();
@@ -141,34 +159,128 @@ pub type FungiblesTransactor = FungiblesAdapter<
 pub type UniquesConvertedConcreteId =
 	assets_common::UniquesConvertedConcreteId<UniquesPalletLocation>;
 
-/// Means for transacting unique assets.
-pub type UniquesTransactor = NonFungiblesAdapter<
-	// Use this non-fungibles implementation:
-	Uniques,
-	// This adapter will handle any non-fungible asset from the uniques pallet.
-	UniquesConvertedConcreteId,
-	// Convert an XCM Location into a local account id:
-	LocationToAccountId,
-	// Our chain's account ID type (we can't get away without mentioning it explicitly):
+/// Means for transacting local unique assets.
+pub type LocalUniquesTransactor = UniqueInstancesAdapter<
 	AccountId,
-	// Does not check teleports.
-	NoChecking,
-	// The account to use for tracking teleports.
-	CheckingAccount,
+	LocationToAccountId,
+	MatchInClassInstances<UniquesConvertedConcreteId>,
+	pallet_uniques::asset_ops::Item<Uniques>,
+>;
+
+pub type FilterInvalidForeignAssets = (
+	// Ignore `TrustBackedAssets` explicitly
+	StartsWith<TrustBackedAssetsPalletLocation>,
+	// Ignore original uniques
+	StartsWith<UniquesPalletLocation>,
+	StartsWith<NftsPalletLocation>,
+	// Ignore assets that start explicitly with our `GlobalConsensus(NetworkId)`, means:
+	// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
+	//   ..)}`
+	// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` won't be
+	//   accepted here
+	StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
+);
+
+/// `AssetId`/`AssetInstance` converter for `ForeignUniques`.
+pub type ForeignUniquesConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
+	FilterInvalidForeignAssets,
+	xcm::v3::AssetInstance,
+	xcm::v3::Location,
+>;
+
+/// Means for transacting foreign unique assets.
+pub type ForeignUniquesTransactor = UniqueInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	MatchInClassInstances<ForeignUniquesConvertedConcreteId>,
+	pallet_uniques::asset_ops::Item<ForeignUniques>,
+>;
+
+/// Matcher for converting `ClassId`/`InstanceId` into a nfts asset.
+pub type NftsConvertedConcreteId = assets_common::NftsConvertedConcreteId<NftsPalletLocation>;
+
+type NftsOps = pallet_nfts::asset_ops::Item<Nfts>;
+
+type NftsStashOps = SimpleStash<TreasuryAccount, NftsOps>;
+
+/// Matches NFTs minted on this chain
+/// and which do not correspond to any foreign NFT.
+///
+/// See the [`EnsureNotDerivativeInstance`] documentation
+/// for why we need to match such NFTs carefully.
+type OriginalNftsMatcher = EnsureNotDerivativeInstance<
+	DerivativeNfts,
+	MatchInClassInstances<NftsConvertedConcreteId>,
+>;
+
+type DerivativeNftsMatcher = MatchDerivativeInstances<DerivativeNfts>;
+
+/// Means for transacting nft original assets.
+type NftsTransactor = UniqueInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	(OriginalNftsMatcher, DerivativeNftsMatcher),
+	UniqueInstancesOps<RestoreOnCreate<NftsStashOps>, NftsOps, StashOnDestroy<NftsStashOps>>,
+>;
+
+pub struct CreateDerivativeNft;
+impl AssetDefinition for CreateDerivativeNft {
+	type Id = AssetIdOf<NftsOps>;
+}
+impl Create<
+	Owned<
+		AccountId,
+		DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
+	>
+> for CreateDerivativeNft {
+	fn create(
+		strategy: Owned<
+			AccountId,
+			DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
+		>
+	) -> Result<(CollectionId, ItemId), DispatchError> {
+		let Owned {
+			owner,
+			id_assignment,
+			..
+		} = strategy;
+		let ref nonfungible_asset @ (
+			ref asset_id,
+			..
+		) = id_assignment.params;
+
+		let derivative_id = DerivativeCollections::get_derivative(asset_id)
+			.ok_or(DerivativeCollectionsError::DerivativeNotFound)?;
+
+		let last_item_id = DerivativeCollections::get_derivative_extra(&derivative_id)
+			.unwrap_or_default();
+
+		let nft_id = (derivative_id, last_item_id);
+
+		NftsOps::create(Owned::new(
+			owner,
+			PredefinedId::from(nft_id),
+		))?;
+
+		DerivativeNfts::try_register_derivative(&nonfungible_asset, &nft_id)?;
+
+		let new_last_item_id = last_item_id.checked_add(1)
+			.ok_or(DispatchError::Arithmetic(ArithmeticError::Overflow))?;
+
+		DerivativeCollections::set_derivative_extra(&derivative_id, Some(new_last_item_id))?;
+
+		Ok(nft_id)
+	}
+}
+type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
+	AccountId,
+	LocationToAccountId,
+	CreateDerivativeNft,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
-	(
-		// Ignore `TrustBackedAssets` explicitly
-		StartsWith<TrustBackedAssetsPalletLocation>,
-		// Ignore asset which starts explicitly with our `GlobalConsensus(NetworkId)`, means:
-		// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
-		//   ..)}
-		// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` wont
-		//   be accepted here
-		StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
-	),
+	FilterInvalidForeignAssets,
 	Balance,
 	xcm::v3::Location,
 >;
@@ -216,7 +328,10 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
-	UniquesTransactor,
+	NftsTransactor,
+	NftDerivativesRegistrar,
+	LocalUniquesTransactor,
+	ForeignUniquesTransactor,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -344,10 +459,7 @@ pub type WaivedLocations = (
 ///
 /// - WND with the parent Relay Chain and sibling system parachains; and
 /// - Sibling parachains' assets from where they originate (as `ForeignCreators`).
-pub type TrustedTeleporters = (
-	ConcreteAssetFromSystem<WestendLocation>,
-	IsForeignConcreteAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
-);
+pub type TrustedTeleporters = (ConcreteAssetFromSystem<WestendLocation>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -359,7 +471,11 @@ impl xcm_executor::Config for XcmConfig {
 	// as reserve locations (we trust the Bridge Hub to relay the message that a reserve is being
 	// held). On Westend Asset Hub, we allow Rococo Asset Hub to act as reserve for any asset native
 	// to the Rococo or Ethereum ecosystems.
-	type IsReserve = (bridging::to_rococo::RococoOrEthereumAssetFromAssetHubRococo,);
+	type IsReserve = (
+		bridging::to_rococo::RococoOrEthereumAssetFromAssetHubRococo,
+		IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+		IsForeignNonFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+	);
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
@@ -429,7 +545,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetExchanger = ();
 	type FeeManager = XcmFeeManagerFromComponents<
 		WaivedLocations,
-		XcmFeeToAccount<Self::AssetTransactor, AccountId, TreasuryAccount>,
+		SendXcmFeeToAccount<Self::AssetTransactor, TreasuryAccount>,
 	>;
 	type MessageExporter = ();
 	type UniversalAliases = (bridging::to_rococo::UniversalAliases,);
@@ -499,6 +615,50 @@ impl pallet_xcm::Config for Runtime {
 impl cumulus_pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
+type DerivativeCollectionsError = pallet_derivatives::Error<Runtime, pallet_derivatives::Instance1>;
+impl pallet_derivatives::Config<pallet_derivatives::Instance1> for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+
+	type Original = AssetId;
+	type Derivative = CollectionId;
+
+	// the last item ID within the derivative collection
+	type DerivativeExtra = ItemId;
+
+	type ExtrinsicsConfig = DerivativeCollectionsExtrinsics;
+}
+
+pub struct DerivativeCollectionsExtrinsics;
+impl pallet_derivatives::ExtrinsicsConfig<RuntimeOrigin, CollectionId> for DerivativeCollectionsExtrinsics {
+	type CreateOrigin = EnsureRoot<AccountId>;
+	type DestroyOrigin = EnsureNever<()>;
+
+	type DerivativeCreateParams = Owned<
+		AccountId,
+		AutoId<CollectionId>,
+		pallet_nfts::CollectionConfig<
+			Balance,
+			BlockNumber,
+			CollectionId,
+		>,
+	>;
+
+	type DerivativeCreateOp = pallet_nfts::asset_ops::Collection<Nfts>;
+	type DerivativeDestroyOp = pallet_derivatives::DerivativeAlwaysErrOps<CollectionId>;
+
+	type WeightInfo = pallet_derivatives::TestWeightInfo;
+}
+
+impl pallet_derivatives::Config<pallet_derivatives::Instance2> for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+
+	type Original = NonFungibleAsset;
+	type Derivative = (CollectionId, ItemId);
+
+	type DerivativeExtra = ();
+	type ExtrinsicsConfig = ();
 }
 
 pub type ForeignCreatorsSovereignAccountOf = (

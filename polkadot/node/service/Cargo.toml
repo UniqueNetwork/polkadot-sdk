@@ -201,10 +201,10 @@ xcm-runtime-apis.workspace = true
 xcm-runtime-apis.default-features = true
 
 [dev-dependencies]
-polkadot-test-client = { path = "../test/client" }
-polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
-polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
-env_logger = { workspace = true }
+polkadot-test-client = { workspace = true }
+polkadot-node-subsystem-test-helpers = { workspace = true }
+polkadot-primitives-test-helpers = { workspace = true }
+sp-tracing = { workspace = true }
 assert_matches = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }

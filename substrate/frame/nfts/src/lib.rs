@@ -45,6 +45,7 @@ mod features;
 mod impl_nonfungibles;
 mod types;
 
+pub mod asset_ops;
 pub mod macros;
 pub mod weights;
 

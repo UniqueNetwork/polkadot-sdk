@@ -57,7 +57,7 @@ assert_matches = { workspace = true }
 kvdb-memorydb = { workspace = true }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
 log = { workspace = true, default-features = true }
-env_logger = { workspace = true }
+sp-tracing = { workspace = true }
 
 polkadot-subsystem-bench = { path = "../../subsystem-bench" }
 

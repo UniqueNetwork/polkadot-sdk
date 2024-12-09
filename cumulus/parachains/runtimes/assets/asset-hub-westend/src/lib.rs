@@ -44,9 +44,9 @@ use frame_support::{
 	ord_parameter_types, parameter_types,
 	traits::{
 		fungible, fungibles,
-		tokens::{imbalance::ResolveAssetTo, nonfungibles_v2::Inspect},
+		tokens::{imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, ConversionToAssetBalance},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
-		InstanceFilter, TransformOrigin,
+		InstanceFilter, MapSuccess, TransformOrigin,
 	},
 	weights::{ConstantMultiplier, Weight, WeightToFee as _},
 	BoundedVec, PalletId,
@@ -55,7 +55,7 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
-use pallet_asset_conversion_tx_payment::AssetConversionAdapter;
+use pallet_asset_conversion_tx_payment::SwapAssetAdapter;
 use pallet_nfts::{DestroyWitness, PalletFeatures};
 use pallet_xcm::EnsureXcm;
 use parachains_common::{
@@ -67,7 +67,10 @@ use sp_api::impl_runtime_apis;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{AccountIdConversion, BlakeTwo256, Block as BlockT, Saturating, Verify},
+	traits::{
+		AccountIdConversion, BlakeTwo256, Block as BlockT, ConvertInto, MaybeEquivalence, Replace,
+		Saturating, Verify,
+	},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, Perbill, Permill, RuntimeDebug,
 };
@@ -77,9 +80,9 @@ use sp_version::RuntimeVersion;
 use testnet_parachains_constants::westend::{consensus::*, currency::*, fee::WeightToFee, time::*};
 use xcm_config::{
 	ForeignAssetsConvertedConcreteId, ForeignCreatorsSovereignAccountOf,
-	PoolAssetsConvertedConcreteId, TrustBackedAssetsConvertedConcreteId,
-	TrustBackedAssetsPalletLocationV3, WestendLocation, WestendLocationV3,
-	XcmOriginToTransactDispatchOrigin,
+	PoolAssetsConvertedConcreteId, TreasuryAccount, TrustBackedAssetsConvertedConcreteId,
+	TrustBackedAssetsPalletLocation, TrustBackedAssetsPalletLocationV3, WestendLocation,
+	WestendLocationV3, XcmOriginToTransactDispatchOrigin,
 };
 
 #[cfg(any(feature = "std", test))]
@@ -787,11 +790,19 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = weights::pallet_collator_selection::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	pub StakingPot: AccountId = CollatorSelection::account_id();
+}
+
 impl pallet_asset_conversion_tx_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type Fungibles = LocalAndForeignAssets;
-	type OnChargeAssetTransaction =
-		AssetConversionAdapter<Balances, AssetConversion, WestendLocationV3>;
+	type AssetId = xcm::v3::Location;
+	type OnChargeAssetTransaction = SwapAssetAdapter<
+		WestendLocationV3,
+		NativeAndAssets,
+		AssetConversion,
+		ResolveAssetTo<StakingPot, NativeAndAssets>,
+	>;
 }
 
 parameter_types! {
@@ -800,9 +811,11 @@ parameter_types! {
 	pub const UniquesMetadataDepositBase: Balance = deposit(1, 129);
 	pub const UniquesAttributeDepositBase: Balance = deposit(1, 0);
 	pub const UniquesDepositPerByte: Balance = deposit(0, 1);
+
+	pub const ForeignUniquesZeroDeposit: Balance = 0;
 }
 
-impl pallet_uniques::Config for Runtime {
+impl pallet_uniques::Config<pallet_uniques::Instance1> for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type CollectionId = CollectionId;
 	type ItemId = ItemId;
@@ -820,6 +833,28 @@ impl pallet_uniques::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type Helper = ();
 	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+	type Locker = ();
+}
+
+impl pallet_uniques::Config<pallet_uniques::Instance2> for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type CollectionId = xcm::v3::Location;
+	type ItemId = xcm::v3::AssetInstance;
+	type Currency = Balances;
+	type ForceOrigin = AssetsForceOrigin;
+	type CollectionDeposit = ForeignUniquesZeroDeposit;
+	type ItemDeposit = ForeignUniquesZeroDeposit;
+	type MetadataDepositBase = ForeignUniquesZeroDeposit;
+	type AttributeDepositBase = ForeignUniquesZeroDeposit;
+	type DepositPerByte = ForeignUniquesZeroDeposit;
+	type StringLimit = ConstU32<0>;
+	type KeyLimit = ConstU32<0>;
+	type ValueLimit = ConstU32<0>;
+	type WeightInfo = weights::pallet_uniques::WeightInfo<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type Helper = ();
+	type CreateOrigin =
+		AsEnsureOriginWithArg<MapSuccess<AssetsForceOrigin, Replace<TreasuryAccount>>>;
 	type Locker = ();
 }
 
@@ -952,6 +987,8 @@ construct_runtime!(
 		// Bridge utilities.
 		ToRococoXcmRouter: pallet_xcm_bridge_hub_router::<Instance1> = 34,
 		MessageQueue: pallet_message_queue = 35,
+		DerivativeCollections: pallet_derivatives::<Instance1> = 36,
+		DerivativeNfts: pallet_derivatives::<Instance2> = 37,
 
 		// Handy utilities.
 		Utility: pallet_utility = 40,
@@ -960,7 +997,7 @@ construct_runtime!(
 
 		// The main stage.
 		Assets: pallet_assets::<Instance1> = 50,
-		Uniques: pallet_uniques = 51,
+		Uniques: pallet_uniques::<Instance1> = 51,
 		Nfts: pallet_nfts = 52,
 		ForeignAssets: pallet_assets::<Instance2> = 53,
 		NftFractionalization: pallet_nft_fractionalization = 54,
@@ -969,6 +1006,7 @@ construct_runtime!(
 		AssetsFreezer: pallet_assets_freezer::<Instance1> = 57,
 		ForeignAssetsFreezer: pallet_assets_freezer::<Instance2> = 58,
 		PoolAssetsFreezer: pallet_assets_freezer::<Instance3> = 59,
+		ForeignUniques: pallet_uniques::<Instance2> = 60,
 
 		StateTrieMigration: pallet_state_trie_migration = 70,
 
@@ -1165,6 +1203,12 @@ mod benches {
 	);
 }
 
+pub type NativeToAssets =
+	pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, TrustBackedAssetsInstance>;
+
+pub type NativeToForeignAssets =
+	pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, ForeignAssetsInstance>;
+
 impl_runtime_apis! {
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
 		fn slot_duration() -> sp_consensus_aura::SlotDuration {
@@ -1354,19 +1398,44 @@ impl_runtime_apis! {
 
 	impl xcm_runtime_apis::fees::XcmPaymentApi<Block> for Runtime {
 		fn query_acceptable_payment_assets(xcm_version: xcm::Version) -> Result<Vec<VersionedAssetId>, XcmPaymentApiError> {
-			let acceptable_assets = vec![AssetId(xcm_config::WestendLocation::get())];
+			use xcm::prelude::Junction::*;
+
+			let assets = Assets::sufficient_assets()
+				.filter_map(|asset_id| TrustBackedAssetsPalletLocation::get().appended_with(GeneralIndex(asset_id.into())).ok().map(AssetId));
+			let foreign_assets = ForeignAssets::sufficient_assets()
+				.filter_map(|foreign_asset_id| foreign_asset_id.try_into().ok().map(AssetId));
+
+			let acceptable_assets = core::iter::once(AssetId(xcm_config::WestendLocation::get()))
+				.chain(assets)
+				.chain(foreign_assets)
+				.collect::<Vec<_>>();
+
 			PolkadotXcm::query_acceptable_payment_assets(xcm_version, acceptable_assets)
 		}
 
 		fn query_weight_to_asset_fee(weight: Weight, asset: VersionedAssetId) -> Result<u128, XcmPaymentApiError> {
+			let native_fee = WeightToFee::weight_to_fee(&weight);
+
 			match asset.try_as::<AssetId>() {
 				Ok(asset_id) if asset_id.0 == xcm_config::WestendLocation::get() => {
 					// for native token
-					Ok(WeightToFee::weight_to_fee(&weight))
+					Ok(native_fee)
 				},
-				Ok(asset_id) => {
-					log::trace!(target: "xcm::xcm_runtime_apis", "query_weight_to_asset_fee - unhandled asset_id: {asset_id:?}!");
-					Err(XcmPaymentApiError::AssetNotFound)
+				Ok(AssetId(location)) => {
+					if let Some(asset_id) = <AssetIdForTrustBackedAssetsConvert<TrustBackedAssetsPalletLocation>>::convert(location) {
+						let sufficient_asset_fee = NativeToAssets::to_asset_balance(native_fee, asset_id)
+							.map_err(|_| XcmPaymentApiError::WeightNotComputable)?;
+
+						return Ok(sufficient_asset_fee);
+					}
+
+					let foreign_asset_id: xcm::v3::Location = location.clone().try_into()
+						.map_err(|_| XcmPaymentApiError::VersionedConversionFailed)?;
+
+					let foreign_asset_fee = NativeToForeignAssets::to_asset_balance(native_fee, foreign_asset_id)
+						.map_err(|_| XcmPaymentApiError::WeightNotComputable)?;
+
+					Ok(foreign_asset_fee)
 				},
 				Err(_) => {
 					log::trace!(target: "xcm::xcm_runtime_apis", "query_weight_to_asset_fee - failed to convert asset: {asset:?}!");

@@ -4,7 +4,7 @@ version = "39.0.0"
 authors.workspace = true
 edition.workspace = true
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
-homepage = "https://substrate.io"
+homepage.workspace = true
 repository.workspace = true
 description = "Substrate Client RPC (polkadot v1.15.0)"
 readme = "README.md"
@@ -61,7 +61,7 @@ sp-statement-store.default-features = true
 tokio = { workspace = true, default-features = true }
 
 [dev-dependencies]
-env_logger = { workspace = true }
+sp-tracing = { workspace = true }
 assert_matches = { workspace = true }
 sc-block-builder = { default-features = true, path = "../block-builder" }
 sc-network = { default-features = true, path = "../network" }

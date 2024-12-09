@@ -6,7 +6,7 @@ description = "Substrate node kitchensink runtime. (polkadot v1.15.0)"
 edition.workspace = true
 build = "build.rs"
 license = "Apache-2.0"
-homepage = "https://substrate.io"
+homepage.workspace = true
 repository.workspace = true
 publish = false
 

@@ -37,9 +37,9 @@ polkadot-node-jaeger.default-features = true
 
 [dev-dependencies]
 log = { workspace = true, default-features = true }
-env_logger = { workspace = true }
 assert_matches = { workspace = true }
 kvdb-memorydb = { workspace = true }
+sp-tracing = { workspace = true }
 
 sp-core = { default-features = true, path = "../../../../substrate/primitives/core" }
 polkadot-node-subsystem-util = { default-features = true, path = "../../subsystem-util" }

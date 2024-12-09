@@ -15,13 +15,13 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ParachainInfo,
-	ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
-	ToWestendXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques, WeightToFee,
-	XcmpQueue,
+	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
+	ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeOrigin, ToWestendXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques,
+	WeightToFee, XcmpQueue,
 };
 use assets_common::{
-	matching::{FromNetwork, FromSiblingParachain, IsForeignConcreteAsset},
+	matching::{FromNetwork, FromSiblingParachain, IsForeignFungibleAsset},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
@@ -49,17 +49,17 @@ use testnet_parachains_constants::rococo::snowbridge::{
 };
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowHrmpNotificationsFromRelayChain,
-	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal, DescribeFamily,
-	EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter, FungiblesAdapter,
-	GlobalConsensusParachainConvertsFor, HashedDescription, IsConcrete, LocalMint,
-	NetworkExportTableItem, NoChecking, NonFungiblesAdapter, ParentAsSuperuser, ParentIsPreset,
-	RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignPaidRemoteExporter,
-	SovereignSignedViaLocation, StartsWith, StartsWithExplicitGlobalConsensus, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
-	XcmFeeManagerFromComponents, XcmFeeToAccount,
+	unique_instances::UniqueInstancesAdapter, AccountId32Aliases, AllowExplicitUnpaidExecutionFrom,
+	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry,
+	DescribeAllTerminal, DescribeFamily, EnsureXcmOrigin, FrameTransactionalProcessor,
+	FungibleAdapter, FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription,
+	IsConcrete, LocalMint, MatchInClassInstances, NetworkExportTableItem, NoChecking,
+	ParentAsSuperuser, ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount,
+	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignPaidRemoteExporter, SovereignSignedViaLocation, StartsWith,
+	StartsWithExplicitGlobalConsensus, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -148,34 +148,45 @@ pub type FungiblesTransactor = FungiblesAdapter<
 pub type UniquesConvertedConcreteId =
 	assets_common::UniquesConvertedConcreteId<UniquesPalletLocation>;
 
-/// Means for transacting unique assets.
-pub type UniquesTransactor = NonFungiblesAdapter<
-	// Use this non-fungibles implementation:
-	Uniques,
-	// This adapter will handle any non-fungible asset from the uniques pallet.
-	UniquesConvertedConcreteId,
-	// Convert an XCM Location into a local account id:
-	LocationToAccountId,
-	// Our chain's account ID type (we can't get away without mentioning it explicitly):
+/// Means for transacting local unique assets.
+pub type LocalUniquesTransactor = UniqueInstancesAdapter<
 	AccountId,
-	// Does not check teleports.
-	NoChecking,
-	// The account to use for tracking teleports.
-	CheckingAccount,
+	LocationToAccountId,
+	MatchInClassInstances<UniquesConvertedConcreteId>,
+	pallet_uniques::asset_ops::Item<Uniques>,
+>;
+
+pub type FilterInvalidForeignAssets = (
+	// Ignore `TrustBackedAssets` explicitly
+	StartsWith<TrustBackedAssetsPalletLocation>,
+	// Ignore original uniques
+	StartsWith<UniquesPalletLocation>,
+	// Ignore assets that start explicitly with our `GlobalConsensus(NetworkId)`, means:
+	// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
+	//   ..)}`
+	// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` won't be
+	//   accepted here
+	StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
+);
+
+/// `AssetId`/`AssetInstance` converter for `ForeignUniques`.
+pub type ForeignUniquesConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
+	FilterInvalidForeignAssets,
+	xcm::v3::AssetInstance,
+	xcm::v3::Location,
+>;
+
+/// Means for transacting foreign unique assets.
+pub type ForeignUniquesTransactor = UniqueInstancesAdapter<
+	AccountId,
+	LocationToAccountId,
+	MatchInClassInstances<ForeignUniquesConvertedConcreteId>,
+	pallet_uniques::asset_ops::Item<ForeignUniques>,
 >;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
-	(
-		// Ignore `TrustBackedAssets` explicitly
-		StartsWith<TrustBackedAssetsPalletLocation>,
-		// Ignore assets that start explicitly with our `GlobalConsensus(NetworkId)`, means:
-		// - foreign assets from our consensus should be: `Location {parents: 1, X*(Parachain(xyz),
-		//   ..)}`
-		// - foreign assets outside our consensus with the same `GlobalConsensus(NetworkId)` won't
-		//   be accepted here
-		StartsWithExplicitGlobalConsensus<UniversalLocationNetworkId>,
-	),
+	FilterInvalidForeignAssets,
 	Balance,
 	xcm::v3::Location,
 >;
@@ -223,7 +234,8 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
-	UniquesTransactor,
+	LocalUniquesTransactor,
+	ForeignUniquesTransactor,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
@@ -326,7 +338,7 @@ pub type WaivedLocations = (
 /// - Sibling parachains' assets from where they originate (as `ForeignCreators`).
 pub type TrustedTeleporters = (
 	ConcreteAssetFromSystem<TokenLocation>,
-	IsForeignConcreteAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
+	IsForeignFungibleAsset<FromSiblingParachain<parachain_info::Pallet<Runtime>>>,
 );
 
 pub struct XcmConfig;
@@ -413,7 +425,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetExchanger = ();
 	type FeeManager = XcmFeeManagerFromComponents<
 		WaivedLocations,
-		XcmFeeToAccount<Self::AssetTransactor, AccountId, TreasuryAccount>,
+		SendXcmFeeToAccount<Self::AssetTransactor, TreasuryAccount>,
 	>;
 	type MessageExporter = ();
 	type UniversalAliases =
@@ -664,7 +676,7 @@ pub mod bridging {
 		}
 
 		pub type IsTrustedBridgedReserveLocationForForeignAsset =
-			IsForeignConcreteAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
+			IsForeignFungibleAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
 
 		impl Contains<(Location, Junction)> for UniversalAliases {
 			fn contains(alias: &(Location, Junction)) -> bool {

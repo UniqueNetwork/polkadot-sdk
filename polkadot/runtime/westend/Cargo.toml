@@ -43,55 +43,54 @@ frame-election-provider-support.workspace = true
 frame-executive.workspace = true
 frame-metadata-hash-extension.workspace = true
 frame-support = { features = ["experimental", "tuples-96"], workspace = true }
-frame-system.workspace = true
-frame-system-rpc-runtime-api.workspace = true
-westend-runtime-constants.workspace = true
-pallet-asset-rate.workspace = true
-pallet-authority-discovery.workspace = true
-pallet-authorship.workspace = true
-pallet-babe.workspace = true
-pallet-bags-list.workspace = true
-pallet-balances.workspace = true
-pallet-beefy.workspace = true
-pallet-beefy-mmr.workspace = true
-pallet-collective.workspace = true
-pallet-democracy.workspace = true
-pallet-elections-phragmen.workspace = true
-pallet-election-provider-multi-phase.workspace = true
-pallet-fast-unstake.workspace = true
-pallet-grandpa.workspace = true
-pallet-identity.workspace = true
-pallet-indices.workspace = true
-pallet-membership.workspace = true
-pallet-message-queue.workspace = true
-pallet-mmr.workspace = true
-pallet-multisig.workspace = true
-pallet-nomination-pools.workspace = true
-pallet-conviction-voting.workspace = true
-pallet-offences.workspace = true
-pallet-preimage.workspace = true
-pallet-proxy.workspace = true
-pallet-recovery.workspace = true
-pallet-referenda.workspace = true
-pallet-scheduler.workspace = true
-pallet-session.workspace = true
-pallet-society.workspace = true
-pallet-staking.workspace = true
-pallet-staking-reward-curve.workspace = true
-pallet-staking-reward-curve.default-features = true
-pallet-staking-runtime-api.workspace = true
-pallet-delegated-staking.workspace = true
-pallet-state-trie-migration.workspace = true
-pallet-sudo.workspace = true
-pallet-timestamp.workspace = true
-pallet-transaction-payment.workspace = true
-pallet-transaction-payment-rpc-runtime-api.workspace = true
-pallet-nomination-pools-runtime-api.workspace = true
-pallet-treasury.workspace = true
-pallet-utility.workspace = true
-pallet-vesting.workspace = true
-pallet-whitelist.workspace = true
-pallet-xcm.workspace = true
+frame-system = { workspace = true }
+frame-system-rpc-runtime-api = { workspace = true }
+westend-runtime-constants = { workspace = true }
+pallet-asset-rate = { workspace = true }
+pallet-authority-discovery = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-babe = { workspace = true }
+pallet-bags-list = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-beefy = { workspace = true }
+pallet-beefy-mmr = { workspace = true }
+pallet-collective = { workspace = true }
+pallet-democracy = { workspace = true }
+pallet-elections-phragmen = { workspace = true }
+pallet-election-provider-multi-phase = { workspace = true }
+pallet-fast-unstake = { workspace = true }
+pallet-grandpa = { workspace = true }
+pallet-identity = { workspace = true }
+pallet-indices = { workspace = true }
+pallet-membership = { workspace = true }
+pallet-message-queue = { workspace = true }
+pallet-mmr = { workspace = true }
+pallet-multisig = { workspace = true }
+pallet-nomination-pools = { workspace = true }
+pallet-conviction-voting = { workspace = true }
+pallet-offences = { workspace = true }
+pallet-parameters = { workspace = true }
+pallet-preimage = { workspace = true }
+pallet-proxy = { workspace = true }
+pallet-recovery = { workspace = true }
+pallet-referenda = { workspace = true }
+pallet-scheduler = { workspace = true }
+pallet-session = { workspace = true }
+pallet-society = { workspace = true }
+pallet-staking = { workspace = true }
+pallet-staking-runtime-api = { workspace = true }
+pallet-delegated-staking = { workspace = true }
+pallet-state-trie-migration = { workspace = true }
+pallet-sudo = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-transaction-payment = { workspace = true }
+pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+pallet-nomination-pools-runtime-api = { workspace = true }
+pallet-treasury = { workspace = true }
+pallet-utility = { workspace = true }
+pallet-vesting = { workspace = true }
+pallet-whitelist = { workspace = true }
+pallet-xcm = { workspace = true }
 pallet-xcm-benchmarks = { optional = true, workspace = true }
 pallet-root-testing.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
@@ -170,6 +169,7 @@ std = [
 	"pallet-nomination-pools/std",
 	"pallet-offences-benchmarking?/std",
 	"pallet-offences/std",
+	"pallet-parameters/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
 	"pallet-recovery/std",
@@ -236,6 +236,7 @@ runtime-benchmarks = [
 	"pallet-babe/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-beefy-mmr/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-conviction-voting/runtime-benchmarks",
 	"pallet-delegated-staking/runtime-benchmarks",
@@ -255,6 +256,7 @@ runtime-benchmarks = [
 	"pallet-nomination-pools/runtime-benchmarks",
 	"pallet-offences-benchmarking/runtime-benchmarks",
 	"pallet-offences/runtime-benchmarks",
+	"pallet-parameters/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-recovery/runtime-benchmarks",
@@ -313,6 +315,7 @@ try-runtime = [
 	"pallet-multisig/try-runtime",
 	"pallet-nomination-pools/try-runtime",
 	"pallet-offences/try-runtime",
+	"pallet-parameters/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
 	"pallet-recovery/try-runtime",
@@ -342,7 +345,10 @@ metadata-hash = ["substrate-wasm-builder/metadata-hash"]
 # Set timing constants (e.g. session period) to faster versions to speed up testing.
 fast-runtime = []
 
-runtime-metrics = ["polkadot-runtime-parachains/runtime-metrics", "sp-io/with-tracing"]
+runtime-metrics = [
+	"polkadot-runtime-parachains/runtime-metrics",
+	"sp-io/with-tracing",
+]
 
 # A feature that should be enabled when the runtime should be built for on-chain
 # deployment. This will disable stuff that shouldn't be part of the on-chain wasm

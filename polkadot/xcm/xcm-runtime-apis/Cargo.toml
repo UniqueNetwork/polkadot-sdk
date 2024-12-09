@@ -30,7 +30,7 @@ pallet-assets = { path = "../../../substrate/frame/assets", default-features = f
 xcm-executor = { path = "../xcm-executor", package = "staging-xcm-executor", default-features = false }
 frame-executive = { path = "../../../substrate/frame/executive", default-features = false }
 log = { workspace = true }
-env_logger = { workspace = true }
+sp-tracing = { workspace = true, default-features = true }
 
 [features]
 default = ["std"]

@@ -34,7 +34,6 @@ sp-authority-discovery = { default-features = true, path = "../../../../substrat
 sp-keystore = { default-features = true, path = "../../../../substrate/primitives/keystore" }
 sp-keyring = { default-features = true, path = "../../../../substrate/primitives/keyring" }
 maplit = { workspace = true }
-log = { workspace = true, default-features = true }
-env_logger = { workspace = true }
+sp-tracing = { workspace = true }
 assert_matches = { workspace = true }
 rand_chacha = { workspace = true, default-features = true }

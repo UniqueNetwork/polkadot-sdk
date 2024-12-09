@@ -13,10 +13,11 @@ workspace = true
 async-trait = { workspace = true }
 futures = { workspace = true }
 futures-timer = { workspace = true }
-gum.workspace = true
-gum.default-features = true
-sp-maybe-compressed-blob.workspace = true
-sp-maybe-compressed-blob.default-features = true
+gum = { workspace = true, default-features = true }
+
+sp-keystore = { workspace = true }
+sp-application-crypto = { workspace = true }
+sp-maybe-compressed-blob = { workspace = true, default-features = true }
 codec = { features = ["bit-vec", "derive"], workspace = true }
 polkadot-primitives.workspace = true
 polkadot-primitives.default-features = true
