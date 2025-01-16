@@ -854,6 +854,7 @@ impl pallet_uniques::Config<pallet_uniques::Instance1> for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type Helper = ();
 	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+	type SystemCreateOrigin = frame_system::EnsureNever<AccountId>;
 	type Locker = ();
 }
 
@@ -876,6 +877,8 @@ impl pallet_uniques::Config<pallet_uniques::Instance2> for Runtime {
 	type Helper = ();
 	type CreateOrigin =
 		AsEnsureOriginWithArg<MapSuccess<AssetsForceOrigin, Replace<TreasuryAccount>>>;
+	type SystemCreateOrigin =
+		AsEnsureOriginWithArg<MapSuccess<EnsureSigned<AccountId>, Replace<TreasuryAccount>>>;
 	type Locker = ();
 }
 
