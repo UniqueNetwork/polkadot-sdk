@@ -328,8 +328,12 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
+
 	NftsTransactor,
-	NftDerivativesRegistrar,
+
+	// NOTE: only one pallet can host derivatives.
+	// NftDerivativesRegistrar,
+
 	LocalUniquesTransactor,
 	ForeignUniquesTransactor,
 );

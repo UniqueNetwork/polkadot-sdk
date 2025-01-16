@@ -121,6 +121,14 @@ pub mod pallet {
 			Success = Self::AccountId,
 		>;
 
+		/// System collection creation is only allowed if the origin attempting it and the
+		/// collection are in this set.
+		type SystemCreateOrigin: EnsureOriginWithArg<
+			Self::RuntimeOrigin,
+			Self::CollectionId,
+			Success = Self::AccountId,
+		>;
+
 		/// Locker trait to enable Locking mechanism downstream.
 		type Locker: Locker<Self::CollectionId, Self::ItemId>;
 
@@ -1549,6 +1557,25 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
 			Self::do_buy_item(collection, item, origin, bid_price)
+		}
+
+		#[pallet::call_index(26)]
+		#[pallet::weight(T::WeightInfo::create())]
+		pub fn create_system(
+			origin: OriginFor<T>,
+			collection: T::CollectionId,
+		) -> DispatchResult {
+			let owner = T::SystemCreateOrigin::ensure_origin(origin, &collection)?;
+			let free_holding = false;
+
+			Self::do_create_collection(
+				collection.clone(),
+				owner.clone(),
+				owner.clone(),
+				Zero::zero(),
+				free_holding,
+				Event::Created { collection, creator: owner.clone(), owner, },
+			)
 		}
 	}
 }
