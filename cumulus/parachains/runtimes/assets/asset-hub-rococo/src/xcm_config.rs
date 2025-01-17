@@ -21,7 +21,7 @@ use super::{
 	WeightToFee, XcmpQueue,
 };
 use assets_common::{
-	matching::{FromNetwork, FromSiblingParachain, IsForeignConcreteAsset, ParentLocation},
+	matching::{FromNetwork, FromSiblingParachain, IsForeignFungibleAsset, ParentLocation},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
@@ -171,8 +171,8 @@ pub type FilterInvalidForeignAssets = (
 /// `AssetId`/`AssetInstance` converter for `ForeignUniques`.
 pub type ForeignUniquesConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
 	FilterInvalidForeignAssets,
-	xcm::v3::AssetInstance,
-	xcm::v3::Location,
+	xcm::v4::AssetInstance,
+	xcm::v4::Location,
 >;
 
 /// Means for transacting foreign unique assets.
@@ -685,7 +685,7 @@ pub mod bridging {
 		}
 
 		pub type EthereumAssetFromEthereum =
-			IsForeignConcreteAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
+			IsForeignFungibleAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
 
 		impl Contains<(Location, Junction)> for UniversalAliases {
 			fn contains(alias: &(Location, Junction)) -> bool {

@@ -21,7 +21,7 @@ use super::{
 	WeightToFee, XcmpQueue, DerivativeCollections, DerivativeNfts, Nfts,
 };
 use assets_common::{
-	matching::{FromSiblingParachain, IsForeignConcreteAsset, IsForeignFungibleAsset, IsForeignNonFungibleAsset, ParentLocation},
+	matching::{FromSiblingParachain, IsForeignFungibleAsset, IsForeignNonFungibleAsset, ParentLocation},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
@@ -44,6 +44,7 @@ use parachains_common::{
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
 use snowbridge_router_primitives::inbound::EthereumLocationsConverterFor;
+use sp_runtime::ArithmeticError;
 use sp_runtime::traits::{AccountIdConversion, ConvertInto, TryConvertInto};
 use xcm::latest::{prelude::*, ROCOCO_GENESIS_HASH, WESTEND_GENESIS_HASH};
 use xcm_builder::{
@@ -183,8 +184,8 @@ pub type FilterInvalidForeignAssets = (
 /// `AssetId`/`AssetInstance` converter for `ForeignUniques`.
 pub type ForeignUniquesConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
 	FilterInvalidForeignAssets,
-	xcm::v3::AssetInstance,
-	xcm::v3::Location,
+	xcm::v4::AssetInstance,
+	xcm::v4::Location,
 >;
 
 /// Means for transacting foreign unique assets.
@@ -859,7 +860,7 @@ pub mod bridging {
 		pub type EthereumNetworkExportTable = xcm_builder::NetworkExportTable<EthereumBridgeTable>;
 
 		pub type EthereumAssetFromEthereum =
-			IsForeignConcreteAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
+			IsForeignFungibleAsset<FromNetwork<UniversalLocation, EthereumNetwork>>;
 
 		impl Contains<(Location, Junction)> for UniversalAliases {
 			fn contains(alias: &(Location, Junction)) -> bool {

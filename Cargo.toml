@@ -1377,6 +1377,7 @@ westend-runtime = { path = "polkadot/runtime/westend", version = "20.0.0" }
 westend-runtime-constants = { path = "polkadot/runtime/westend/constants", default-features = false, version = "18.0.0" }
 westend-system-emulated-network = { path = "cumulus/parachains/integration-tests/emulated/networks/westend-system", version = "0.1.0" }
 x25519-dalek = { version = "2.0" }
+pallet-derivatives = { path = "polkadot/xcm/pallet-derivatives", default-features = false, version = "1.0.0" }
 xcm = { path = "polkadot/xcm", default-features = false, package = "staging-xcm", version = "15.0.1" }
 xcm-builder = { path = "polkadot/xcm/xcm-builder", default-features = false, package = "staging-xcm-builder", version = "18.0.0" }
 xcm-docs = { path = "polkadot/xcm/docs", version = "0.1.0" }

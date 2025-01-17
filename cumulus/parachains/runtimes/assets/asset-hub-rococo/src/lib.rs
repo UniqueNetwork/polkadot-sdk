@@ -85,7 +85,7 @@ use testnet_parachains_constants::rococo::{consensus::*, currency::*, fee::Weigh
 use xcm_config::{
 	ForeignAssetsConvertedConcreteId, GovernanceLocation, LocationToAccountId,
 	PoolAssetsConvertedConcreteId, TokenLocation, TrustBackedAssetsConvertedConcreteId,
-	TrustBackedAssetsPalletLocation,
+	TrustBackedAssetsPalletLocation, TreasuryAccount,
 };
 
 #[cfg(test)]
@@ -860,8 +860,8 @@ impl pallet_uniques::Config<pallet_uniques::Instance1> for Runtime {
 
 impl pallet_uniques::Config<pallet_uniques::Instance2> for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type CollectionId = xcm::v3::Location;
-	type ItemId = xcm::v3::AssetInstance;
+	type CollectionId = xcm::v4::Location;
+	type ItemId = xcm::v4::AssetInstance;
 	type Currency = Balances;
 	type ForceOrigin = AssetsForceOrigin;
 	type CollectionDeposit = ForeignUniquesZeroDeposit;
