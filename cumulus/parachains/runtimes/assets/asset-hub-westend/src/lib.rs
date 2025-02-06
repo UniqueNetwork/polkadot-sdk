@@ -46,11 +46,11 @@ use frame_support::{
 	traits::{
 		fungible, fungibles,
 		tokens::{
-			imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, Fortitude::Polite,
-			Preservation::Expendable, ConversionToAssetBalance,
+			imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, ConversionToAssetBalance,
+			Fortitude::Polite, Preservation::Expendable,
 		},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
-		InstanceFilter, MapSuccess, Nothing, TransformOrigin,
+		InstanceFilter, MapSuccess, Nothing, PalletInfoAccess, TransformOrigin,
 	},
 	weights::{ConstantMultiplier, Weight, WeightToFee as _},
 	BoundedVec, PalletId,
@@ -69,11 +69,11 @@ use parachains_common::{
 	NORMAL_DISPATCH_RATIO,
 };
 use sp_api::impl_runtime_apis;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160};
+use sp_core::{crypto::KeyTypeId, Get, OpaqueMetadata, H160};
 use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{
-		AccountIdConversion, BlakeTwo256, Block as BlockT, ConvertInto, Replace, MaybeEquivalence,
+		AccountIdConversion, BlakeTwo256, Block as BlockT, ConvertInto, MaybeEquivalence, Replace,
 		Saturating, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
@@ -87,9 +87,8 @@ use testnet_parachains_constants::westend::{
 };
 use xcm_config::{
 	ForeignAssetsConvertedConcreteId, LocationToAccountId, PoolAssetsConvertedConcreteId,
-	TrustBackedAssetsConvertedConcreteId, TrustBackedAssetsPalletLocation, WestendLocation,
-	TreasuryAccount,
-	XcmOriginToTransactDispatchOrigin,
+	TreasuryAccount, TrustBackedAssetsConvertedConcreteId, TrustBackedAssetsPalletLocation,
+	WestendLocation, XcmOriginToTransactDispatchOrigin,
 };
 
 #[cfg(any(feature = "std", test))]
@@ -101,7 +100,7 @@ use assets_common::{
 };
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use xcm::{
-	latest::prelude::AssetId,
+	latest::prelude::{Asset, AssetId, Assets as XcmAssets, Fungibility, Junction, Location, Xcm},
 	prelude::{VersionedAsset, VersionedAssetId, VersionedAssets, VersionedLocation, VersionedXcm},
 };
 
@@ -720,18 +719,56 @@ impl pallet_message_queue::Config for Runtime {
 impl cumulus_pallet_aura_ext::Config for Runtime {}
 
 parameter_types! {
-	/// The asset ID for the asset that we use to pay for message delivery fees.
-	pub FeeAssetId: AssetId = AssetId(xcm_config::WestendLocation::get());
+	pub WndFeeAssetId: AssetId = AssetId(xcm_config::WestendLocation::get());
+
+	pub PusdFeeAssetId: AssetId = AssetId(Location::new(0, [
+		Junction::PalletInstance(<Assets as PalletInfoAccess>::index() as u8),
+		Junction::GeneralIndex(1984),
+	]));
+
 	/// The base fee for the message delivery fees.
 	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 }
 
-pub type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
-	FeeAssetId,
-	BaseDeliveryFee,
-	TransactionByteFee,
-	XcmpQueue,
->;
+pub type WndPriceForSiblingParachainDelivery =
+	polkadot_runtime_common::xcm_sender::ExponentialPrice<
+		WndFeeAssetId,
+		BaseDeliveryFee,
+		TransactionByteFee,
+		XcmpQueue,
+	>;
+
+pub struct DeliveryFees;
+impl polkadot_runtime_common::xcm_sender::PriceForMessageDelivery for DeliveryFees {
+	type Id = ParaId;
+	fn price_for_delivery(id: Self::Id, msg: &Xcm<()>) -> XcmAssets {
+		let native_xcm_fees = WndPriceForSiblingParachainDelivery::price_for_delivery(id, msg);
+		let self_para_id = ParachainInfo::get();
+		if self_para_id == 2001.into() && (id == 2002.into() || id == 2003.into()) {
+			let Fungibility::Fungible(native_fee_amount) = native_xcm_fees.inner()[0].fun else {
+				unreachable!();
+			};
+
+			let pusd_asset_id = PusdFeeAssetId::get();
+			let native_asset_id = WndFeeAssetId::get();
+
+			match pallet_asset_conversion::Pallet::<Runtime>::quote_price_tokens_for_exact_tokens(
+				pusd_asset_id.0,
+				native_asset_id.0,
+				native_fee_amount,
+				true, // We include the conversion fee.
+			) {
+				Some(pusd_fee) =>
+					XcmAssets::from(vec![Asset { id: PusdFeeAssetId::get(), fun: pusd_fee.into() }]),
+
+				// fallback to native when we can't convert the fee
+				None => native_xcm_fees,
+			}
+		} else {
+			native_xcm_fees
+		}
+	}
+}
 
 impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -747,7 +784,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
 	type WeightInfo = weights::cumulus_pallet_xcmp_queue::WeightInfo<Runtime>;
-	type PriceForSiblingDelivery = PriceForSiblingParachainDelivery;
+	type PriceForSiblingDelivery = DeliveryFees;
 }
 
 impl cumulus_pallet_xcmp_queue::migration::v5::V5Config for Runtime {

@@ -15,19 +15,27 @@
 
 use super::{
 	AccountId, AllPalletsWithSystem, Assets, Authorship, Balance, Balances, BaseDeliveryFee,
-	CollatorSelection, FeeAssetId, ForeignAssets, ForeignAssetsInstance, ForeignUniques,
-	ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime, RuntimeCall, RuntimeEvent,
-	RuntimeOrigin, ToRococoXcmRouter, TransactionByteFee, TrustBackedAssetsInstance, Uniques,
-	WeightToFee, XcmpQueue, DerivativeCollections, DerivativeNfts, Nfts,
+	CollatorSelection, DerivativeCollections, DerivativeNfts, ForeignAssets, ForeignAssetsInstance,
+	ForeignUniques, Nfts, ParachainInfo, ParachainSystem, PolkadotXcm, PoolAssets, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, ToRococoXcmRouter, TransactionByteFee,
+	TrustBackedAssetsInstance, Uniques, WeightToFee, WndFeeAssetId, XcmpQueue,
 };
 use assets_common::{
-	matching::{FromSiblingParachain, IsForeignFungibleAsset, IsForeignNonFungibleAsset, ParentLocation},
+	matching::{
+		FromSiblingParachain, IsForeignFungibleAsset, IsForeignNonFungibleAsset, ParentLocation,
+	},
 	TrustBackedAssetsAsLocation,
 };
 use frame_support::{
-	pallet_prelude::*, parameter_types, traits::{
+	pallet_prelude::*,
+	parameter_types,
+	traits::{
 		tokens::{
-			asset_ops::{common_strategies::{DeriveAndReportId, AutoId, Owned, PredefinedId}, AssetIdOf, Create, AssetDefinition}, imbalance::{ResolveAssetTo, ResolveTo}
+			asset_ops::{
+				common_strategies::{AutoId, DeriveAndReportId, Owned, PredefinedId},
+				AssetDefinition, AssetIdOf, Create,
+			},
+			imbalance::{ResolveAssetTo, ResolveTo},
 		},
 		ConstU32, Contains, Equals, Everything, PalletInfoAccess,
 	},
@@ -39,35 +47,30 @@ use parachains_common::{
 		AllSiblingSystemParachains, AssetFeeAsExistentialDepositMultiplier,
 		ConcreteAssetFromSystem, RelayOrOtherSystemParachains,
 	},
-	TREASURY_PALLET_ID, CollectionId, ItemId, BlockNumber
+	BlockNumber, CollectionId, ItemId, TREASURY_PALLET_ID,
 };
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::xcm_sender::ExponentialPrice;
 use snowbridge_router_primitives::inbound::EthereumLocationsConverterFor;
-use sp_runtime::ArithmeticError;
-use sp_runtime::traits::{AccountIdConversion, ConvertInto, TryConvertInto};
+use sp_runtime::{
+	traits::{AccountIdConversion, ConvertInto, TryConvertInto},
+	ArithmeticError,
+};
 use xcm::latest::{prelude::*, ROCOCO_GENESIS_HASH, WESTEND_GENESIS_HASH};
 use xcm_builder::{
 	unique_instances::{
-		UniqueInstancesAdapter,
-		UniqueInstancesDepositAdapter,
-		NonFungibleAsset,
-		SimpleStash,
-		EnsureNotDerivativeInstance,
-		MatchDerivativeInstances,
-		UniqueInstancesOps,
-		RestoreOnCreate,
-		StashOnDestroy,
-		DerivativesRegistry,
-		DerivativesExtra,
-	}, AccountId32Aliases, AliasChildLocation, AllowExplicitUnpaidExecutionFrom,
+		DerivativesExtra, DerivativesRegistry, EnsureNotDerivativeInstance,
+		MatchDerivativeInstances, NonFungibleAsset, RestoreOnCreate, SimpleStash, StashOnDestroy,
+		UniqueInstancesAdapter, UniqueInstancesDepositAdapter, UniqueInstancesOps,
+	},
+	AccountId32Aliases, AliasChildLocation, AllowExplicitUnpaidExecutionFrom,
 	AllowHrmpNotificationsFromRelayChain, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry,
 	DescribeAllTerminal, DescribeFamily, EnsureXcmOrigin, FrameTransactionalProcessor,
 	FungibleAdapter, FungiblesAdapter, GlobalConsensusParachainConvertsFor, HashedDescription,
-	IsConcrete, LocalMint, MatchInClassInstances, MatchedConvertedConcreteId, NetworkExportTableItem, NoChecking,
-	NonFungiblesAdapter, ParentAsSuperuser, ParentIsPreset, RelayChainAsNative,
-	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
+	IsConcrete, LocalMint, MatchInClassInstances, MatchedConvertedConcreteId,
+	NetworkExportTableItem, NoChecking, NonFungiblesAdapter, ParentAsSuperuser, ParentIsPreset,
+	RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
 	SignedAccountId32AsNative, SignedToAccountId32, SingleAssetExchangeAdapter,
 	SovereignPaidRemoteExporter, SovereignSignedViaLocation, StartsWith,
 	StartsWithExplicitGlobalConsensus, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
@@ -208,10 +211,8 @@ type NftsStashOps = SimpleStash<TreasuryAccount, NftsOps>;
 ///
 /// See the [`EnsureNotDerivativeInstance`] documentation
 /// for why we need to match such NFTs carefully.
-type OriginalNftsMatcher = EnsureNotDerivativeInstance<
-	DerivativeNfts,
-	MatchInClassInstances<NftsConvertedConcreteId>,
->;
+type OriginalNftsMatcher =
+	EnsureNotDerivativeInstance<DerivativeNfts, MatchInClassInstances<NftsConvertedConcreteId>>;
 
 type DerivativeNftsMatcher = MatchDerivativeInstances<DerivativeNfts>;
 
@@ -227,44 +228,29 @@ pub struct CreateDerivativeNft;
 impl AssetDefinition for CreateDerivativeNft {
 	type Id = AssetIdOf<NftsOps>;
 }
-impl Create<
-	Owned<
-		AccountId,
-		DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
-	>
-> for CreateDerivativeNft {
+impl Create<Owned<AccountId, DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>>>
+	for CreateDerivativeNft
+{
 	fn create(
-		strategy: Owned<
-			AccountId,
-			DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>
-		>
+		strategy: Owned<AccountId, DeriveAndReportId<NonFungibleAsset, (CollectionId, ItemId)>>,
 	) -> Result<(CollectionId, ItemId), DispatchError> {
-		let Owned {
-			owner,
-			id_assignment,
-			..
-		} = strategy;
-		let ref nonfungible_asset @ (
-			ref asset_id,
-			..
-		) = id_assignment.params;
+		let Owned { owner, id_assignment, .. } = strategy;
+		let ref nonfungible_asset @ (ref asset_id, ..) = id_assignment.params;
 
 		let derivative_id = DerivativeCollections::get_derivative(asset_id)
 			.ok_or(DerivativeCollectionsError::DerivativeNotFound)?;
 
-		let last_item_id = DerivativeCollections::get_derivative_extra(&derivative_id)
-			.unwrap_or_default();
+		let last_item_id =
+			DerivativeCollections::get_derivative_extra(&derivative_id).unwrap_or_default();
 
 		let nft_id = (derivative_id, last_item_id);
 
-		NftsOps::create(Owned::new(
-			owner,
-			PredefinedId::from(nft_id),
-		))?;
+		NftsOps::create(Owned::new(owner, PredefinedId::from(nft_id)))?;
 
 		DerivativeNfts::try_register_derivative(&nonfungible_asset, &nft_id)?;
 
-		let new_last_item_id = last_item_id.checked_add(1)
+		let new_last_item_id = last_item_id
+			.checked_add(1)
 			.ok_or(DispatchError::Arithmetic(ArithmeticError::Overflow))?;
 
 		DerivativeCollections::set_derivative_extra(&derivative_id, Some(new_last_item_id))?;
@@ -272,11 +258,8 @@ impl Create<
 		Ok(nft_id)
 	}
 }
-type NftDerivativesRegistrar = UniqueInstancesDepositAdapter<
-	AccountId,
-	LocationToAccountId,
-	CreateDerivativeNft,
->;
+type NftDerivativesRegistrar =
+	UniqueInstancesDepositAdapter<AccountId, LocationToAccountId, CreateDerivativeNft>;
 
 /// `AssetId`/`Balance` converter for `ForeignAssets`.
 pub type ForeignAssetsConvertedConcreteId = assets_common::ForeignAssetsConvertedConcreteId<
@@ -328,12 +311,9 @@ pub type AssetTransactors = (
 	FungiblesTransactor,
 	ForeignFungiblesTransactor,
 	PoolFungiblesTransactor,
-
 	NftsTransactor,
-
 	// NOTE: only one pallet can host derivatives.
 	// NftDerivativesRegistrar,
-
 	LocalUniquesTransactor,
 	ForeignUniquesTransactor,
 );
@@ -592,7 +572,7 @@ impl xcm_executor::Config for XcmConfig {
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
 pub type PriceForParentDelivery =
-	ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, ParachainSystem>;
+	ExponentialPrice<WndFeeAssetId, BaseDeliveryFee, TransactionByteFee, ParachainSystem>;
 
 /// For routing XCM messages which do not cross local consensus boundary.
 type LocalXcmRouter = (
@@ -667,18 +647,16 @@ impl pallet_derivatives::Config<pallet_derivatives::Instance1> for Runtime {
 }
 
 pub struct DerivativeCollectionsExtrinsics;
-impl pallet_derivatives::ExtrinsicsConfig<RuntimeOrigin, CollectionId> for DerivativeCollectionsExtrinsics {
+impl pallet_derivatives::ExtrinsicsConfig<RuntimeOrigin, CollectionId>
+	for DerivativeCollectionsExtrinsics
+{
 	type CreateOrigin = EnsureRoot<AccountId>;
 	type DestroyOrigin = EnsureNever<()>;
 
 	type DerivativeCreateParams = Owned<
 		AccountId,
 		AutoId<CollectionId>,
-		pallet_nfts::CollectionConfig<
-			Balance,
-			BlockNumber,
-			CollectionId,
-		>,
+		pallet_nfts::CollectionConfig<Balance, BlockNumber, CollectionId>,
 	>;
 
 	type DerivativeCreateOp = pallet_nfts::asset_ops::Collection<Nfts>;
