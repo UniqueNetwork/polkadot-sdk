@@ -1,0 +1,38 @@
+# ===== Rust builder =====
+FROM ubuntu:22.04 AS builder
+
+ENV CARGO_HOME="/cargo-home"
+ENV PATH="/cargo-home/bin:$PATH"
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+ARG BRANCH="stable2412-xcm-js-tools-ci"
+ARG TOOLCHAIN="nightly-2025-01-25"
+
+RUN apt-get update && \
+    apt-get install -y curl cmake pkg-config libssl-dev git clang llvm libudev-dev protobuf-compiler && \
+    apt-get clean && \
+    rm -r /var/lib/apt/lists/*
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
+
+RUN rustup toolchain install $TOOLCHAIN && \
+    rustup target add wasm32-unknown-unknown --toolchain $TOOLCHAIN && \
+    rustup default $TOOLCHAIN && \
+    rustup component add --toolchain $TOOLCHAIN rust-src && \
+    rustup target list --installed && \
+    rustup show
+
+WORKDIR /workdir
+
+RUN git clone -b $BRANCH https://github.com/UniqueNetwork/polkadot-sdk
+
+RUN cd polkadot-sdk && \
+    cargo build --release -p polkadot-parachain-bin
+
+# ===== BIN ======
+
+FROM ubuntu:24.04
+
+COPY --from=builder /workdir/polkadot-sdk/target/release/polkadot-parachain /bin/polkadot-parachain
+ENTRYPOINT ["/bin/polkadot-parachain"]
