@@ -21,9 +21,12 @@
 
 use frame_support::{
 	pallet_prelude::*,
-	traits::tokens::asset_ops::{
-		common_strategies::JustDo, AssetDefinition, Create, CreateStrategy, Destroy,
-		DestroyStrategy,
+	traits::{
+		tokens::asset_ops::{
+			common_strategies::JustDo, AssetDefinition, Create, CreateStrategy, Destroy,
+			DestroyStrategy,
+		},
+		EnsureOriginWithArg,
 	},
 };
 use frame_system::{pallet_prelude::*, EnsureNever};
@@ -69,7 +72,11 @@ pub mod pallet {
 
 		type DerivativeExtra: Member + Parameter + MaxEncodedLen;
 
-		type ExtrinsicsConfig: ExtrinsicsConfig<Self::RuntimeOrigin, Self::Derivative>;
+		type ExtrinsicsConfig: ExtrinsicsConfig<
+			Self::RuntimeOrigin,
+			Self::Original,
+			Self::Derivative
+		>;
 	}
 
 	#[pallet::storage]
@@ -123,7 +130,7 @@ pub mod pallet {
 			original: OriginalOf<T, I>,
 			derivative_create_params: DerivativeCreateParamsOf<T, I>,
 		) -> DispatchResult {
-			<CreateOriginOf<T, I>>::ensure_origin(origin)?;
+			<CreateOriginOf<T, I>>::ensure_origin(origin, &original)?;
 
 			let derivative = <DerivativeCreateOpOf<T, I>>::create(derivative_create_params)?;
 
@@ -135,7 +142,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			original: OriginalOf<T, I>,
 		) -> DispatchResult {
-			<DestroyOriginOf<T, I>>::ensure_origin(origin)?;
+			<DestroyOriginOf<T, I>>::ensure_origin(origin, &original)?;
 
 			let derivative = <OriginalToDerivative<T, I>>::get(&original)
 				.ok_or(Error::<T, I>::NoDerivativeToDeregister)?;
@@ -259,9 +266,9 @@ impl WeightInfo for ProhibitiveWeightInfo {
 	}
 }
 
-pub trait ExtrinsicsConfig<RuntimeOrigin, Derivative> {
-	type CreateOrigin: EnsureOrigin<RuntimeOrigin>;
-	type DestroyOrigin: EnsureOrigin<RuntimeOrigin>;
+pub trait ExtrinsicsConfig<RuntimeOrigin, Original, Derivative> {
+	type CreateOrigin: EnsureOriginWithArg<RuntimeOrigin, Original>;
+	type DestroyOrigin: EnsureOriginWithArg<RuntimeOrigin, Original>;
 
 	type DerivativeCreateParams: Parameter + CreateStrategy<Success = Derivative>;
 	type DerivativeCreateOp: Create<Self::DerivativeCreateParams>;
@@ -270,7 +277,7 @@ pub trait ExtrinsicsConfig<RuntimeOrigin, Derivative> {
 	type WeightInfo: WeightInfo;
 }
 
-impl<O, D: Parameter + 'static> ExtrinsicsConfig<O, D> for () {
+impl<RO, O, D: Parameter + 'static> ExtrinsicsConfig<RO, O, D> for () {
 	type CreateOrigin = EnsureNever<()>;
 	type DestroyOrigin = EnsureNever<()>;
 
@@ -307,25 +314,31 @@ type RuntimeOriginOf<T> = <T as frame_system::Config>::RuntimeOrigin;
 
 pub type CreateOriginOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
 	RuntimeOriginOf<T>,
+	OriginalOf<T, I>,
 	DerivativeOf<T, I>,
 >>::CreateOrigin;
 pub type DestroyOriginOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
 	RuntimeOriginOf<T>,
+	OriginalOf<T, I>,
 	DerivativeOf<T, I>,
 >>::DestroyOrigin;
 pub type DerivativeCreateParamsOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
 	RuntimeOriginOf<T>,
+	OriginalOf<T, I>,
 	DerivativeOf<T, I>,
 >>::DerivativeCreateParams;
 pub type DerivativeCreateOpOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
 	RuntimeOriginOf<T>,
+	OriginalOf<T, I>,
 	DerivativeOf<T, I>,
 >>::DerivativeCreateOp;
 pub type DerivativeDestroyOpOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
 	RuntimeOriginOf<T>,
+	OriginalOf<T, I>,
 	DerivativeOf<T, I>,
 >>::DerivativeDestroyOp;
 pub type WeightInfoOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
 	RuntimeOriginOf<T>,
+	OriginalOf<T, I>,
 	DerivativeOf<T, I>,
 >>::WeightInfo;
