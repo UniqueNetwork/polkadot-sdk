@@ -330,12 +330,12 @@ pub type AssetTransactors = (
 	PoolFungiblesTransactor,
 
 	NftsTransactor,
-
-	// NOTE: only one pallet can host derivatives.
-	// NftDerivativesRegistrar,
+	NftDerivativesRegistrar,
 
 	LocalUniquesTransactor,
-	ForeignUniquesTransactor,
+
+	// NOTE: only one pallet can host derivatives.
+	// ForeignUniquesTransactor,
 );
 
 /// This is the type we use to convert an (incoming) XCM origin into a local `Origin` instance,
