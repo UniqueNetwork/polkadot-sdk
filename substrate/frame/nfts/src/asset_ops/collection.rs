@@ -1,13 +1,12 @@
 use core::marker::PhantomData;
 
-use crate::{types::asset_strategies::*, *, Collection as CollectionStorage};
+use crate::{types::asset_strategies::*, Collection as CollectionStorage, *};
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	traits::{
 		tokens::asset_ops::{
-			common_strategies::*, AssetDefinition, Create, Destroy,
-			InspectMetadata, UpdateMetadata,
+			common_strategies::*, AssetDefinition, Create, Destroy, InspectMetadata, UpdateMetadata,
 		},
 		EnsureOrigin,
 	},
@@ -23,7 +22,9 @@ impl<T: Config<I>, I: 'static> AssetDefinition for Collection<Pallet<T, I>> {
 	type Id = T::CollectionId;
 }
 
-impl<T: Config<I>, I: 'static> InspectMetadata<Ownership<T::AccountId>> for Collection<Pallet<T, I>> {
+impl<T: Config<I>, I: 'static> InspectMetadata<Ownership<T::AccountId>>
+	for Collection<Pallet<T, I>>
+{
 	fn inspect_metadata(
 		collection: &Self::Id,
 		_ownership: Ownership<T::AccountId>,
@@ -51,7 +52,9 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<Bytes> for Collection<Pallet<T, I>
 		<Pallet<T, I>>::do_update_collection_metadata(
 			None,
 			*collection,
-			update.map(|data| <Pallet<T, I>>::construct_metadata(data.to_vec())).transpose()?,
+			update
+				.map(|data| <Pallet<T, I>>::construct_metadata(data.to_vec()))
+				.transpose()?,
 		)
 	}
 }
@@ -73,7 +76,9 @@ impl<T: Config<I>, I: 'static> UpdateMetadata<WithOrigin<T::RuntimeOrigin, Bytes
 		<Pallet<T, I>>::do_update_collection_metadata(
 			maybe_check_origin,
 			*collection,
-			update.map(|data| <Pallet<T, I>>::construct_metadata(data.to_vec())).transpose()?,
+			update
+				.map(|data| <Pallet<T, I>>::construct_metadata(data.to_vec()))
+				.transpose()?,
 		)
 	}
 }
@@ -100,7 +105,8 @@ impl<'a, T: Config<I>, I: 'static> InspectMetadata<Bytes<RegularAttribute<'a>>>
 }
 
 impl<'a, T: Config<I>, I: 'static>
-	UpdateMetadata<WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>> for Collection<Pallet<T, I>>
+	UpdateMetadata<WithOrigin<T::RuntimeOrigin, Bytes<RegularAttribute<'a>>>>
+	for Collection<Pallet<T, I>>
 {
 	fn update_metadata(
 		collection: &Self::Id,
@@ -112,8 +118,9 @@ impl<'a, T: Config<I>, I: 'static>
 
 		let WithOrigin(origin, Bytes(RegularAttribute(attribute))) = bytes;
 		let attribute = <Pallet<T, I>>::construct_attribute_key(attribute.to_vec())?;
-		let update =
-			update.map(|data| <Pallet<T, I>>::construct_attribute_value(data.to_vec())).transpose()?;
+		let update = update
+			.map(|data| <Pallet<T, I>>::construct_attribute_value(data.to_vec()))
+			.transpose()?;
 
 		let maybe_check_origin = T::ForceOrigin::try_origin(origin)
 			.map(|_| None)
@@ -163,10 +170,18 @@ impl<'a, T: Config<I>, I: 'static> UpdateMetadata<Bytes<SystemAttribute<'a>>>
 
 		let Bytes(SystemAttribute(attribute)) = bytes;
 		let attribute = <Pallet<T, I>>::construct_attribute_key(attribute.to_vec())?;
-		let update =
-			update.map(|data| <Pallet<T, I>>::construct_attribute_value(data.to_vec())).transpose()?;
+		let update = update
+			.map(|data| <Pallet<T, I>>::construct_attribute_value(data.to_vec()))
+			.transpose()?;
 
-		<Pallet<T, I>>::do_update_attribute(None, *collection, maybe_item, namespace, attribute, update)
+		<Pallet<T, I>>::do_update_attribute(
+			None,
+			*collection,
+			maybe_item,
+			namespace,
+			attribute,
+			update,
+		)
 	}
 }
 
@@ -226,7 +241,7 @@ impl<T: Config<I>, I: 'static>
 		>,
 	) -> Result<T::CollectionId, DispatchError> {
 		let WithOrigin(origin, creation_strategy) = strategy;
-		let Adminable { owner, config, .. } = &creation_strategy;
+		let Adminable { owner, admin, config, .. } = creation_strategy;
 
 		let collection = NextCollectionId::<T, I>::get()
 			.or(T::CollectionId::initial_value())
@@ -239,17 +254,37 @@ impl<T: Config<I>, I: 'static>
 					.map_err(DispatchError::from)
 			})?;
 
+		let creation_deposit;
 		if let Some(signer) = maybe_check_signer {
-			ensure!(signer == *owner, Error::<T, I>::NoPermission);
+			ensure!(signer == owner, Error::<T, I>::NoPermission);
 
 			// DepositRequired can be disabled by calling the with `ForceOrigin` only
 			ensure!(
 				!config.has_disabled_setting(CollectionSetting::DepositRequired),
 				Error::<T, I>::WrongSetting
 			);
+
+			creation_deposit = T::CollectionDeposit::get();
+		} else {
+			creation_deposit = Zero::zero();
 		}
 
-		Self::create(creation_strategy)
+		let collection = NextCollectionId::<T, I>::get()
+			.or(T::CollectionId::initial_value())
+			.ok_or(Error::<T, I>::UnknownCollection)?;
+
+		<Pallet<T, I>>::do_create_collection(
+			collection,
+			owner.clone(),
+			admin.clone(),
+			config,
+			creation_deposit,
+			Event::Created { collection, creator: owner, owner: admin },
+		)?;
+
+		<Pallet<T, I>>::set_next_collection_id(collection);
+
+		Ok(collection)
 	}
 }
 
@@ -263,12 +298,7 @@ impl<T: Config<I>, I: 'static>
 		let Owned { owner, id_assignment, config, .. } = strategy;
 		let admin = owner.clone();
 
-		Self::create(Adminable::new_configured(
-			owner,
-			admin,
-			id_assignment,
-			config,
-		))
+		Self::create(Adminable::new_configured(owner, admin, id_assignment, config))
 	}
 }
 
@@ -283,8 +313,8 @@ impl<T: Config<I>, I: 'static> Destroy<WithWitness<DestroyWitness>> for Collecti
 	}
 }
 
-impl<T: Config<I>, I: 'static>
-	Destroy<WithOrigin<T::RuntimeOrigin, WithWitness<DestroyWitness>>> for Collection<Pallet<T, I>>
+impl<T: Config<I>, I: 'static> Destroy<WithOrigin<T::RuntimeOrigin, WithWitness<DestroyWitness>>>
+	for Collection<Pallet<T, I>>
 {
 	fn destroy(
 		collection: &Self::Id,

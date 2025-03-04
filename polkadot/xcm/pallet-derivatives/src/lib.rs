@@ -19,18 +19,18 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
+use alloc::{collections::BTreeMap, vec::Vec};
+
 use frame_support::{
 	pallet_prelude::*,
-	traits::{
-		tokens::asset_ops::{
-			common_strategies::JustDo, AssetDefinition, Create, CreateStrategy, Destroy,
-			DestroyStrategy,
-		},
-		EnsureOriginWithArg,
+	traits::tokens::asset_ops::{
+		common_strategies::WithOrigin, AssetDefinition, Create, CreateStrategy, Destroy,
+		DestroyStrategy,
 	},
 };
-use frame_system::{pallet_prelude::*, EnsureNever};
-use scale_info::TypeInfo;
+use frame_system::pallet_prelude::*;
 use sp_runtime::DispatchResult;
 use xcm_builder::unique_instances::{
 	derivatives::{DerivativesRegistry, IterDerivativesRegistry},
@@ -48,6 +48,31 @@ pub const LOG_TARGET: &'static str = "runtime::xcm::derivatives";
 type OriginalOf<T, I> = <T as Config<I>>::Original;
 type DerivativeOf<T, I> = <T as Config<I>>::Derivative;
 type DerivativeExtraOf<T, I> = <T as Config<I>>::DerivativeExtra;
+
+// FIXME: replace with MetadataMap from XCM when XCM Asset Metadata is implemented
+pub type MetadataMap = BTreeMap<Vec<u8>, Vec<u8>>;
+
+pub struct DerivativeAsset<Original, Derivative> {
+	pub original: Original,
+	pub metadata: MetadataMap,
+	_phantom: PhantomData<Derivative>,
+}
+impl<Original, Derivative> From<(Original, MetadataMap)> for DerivativeAsset<Original, Derivative> {
+	fn from((original, metadata): (Original, MetadataMap)) -> Self {
+		Self { original, metadata, _phantom: PhantomData }
+	}
+}
+
+pub type RegistryMapping<Derivative> = Option<Derivative>;
+
+impl<Original, Derivative> CreateStrategy for DerivativeAsset<Original, Derivative> {
+	type Success = RegistryMapping<Derivative>;
+}
+
+pub struct DestroyWitness(pub MetadataMap);
+impl DestroyStrategy for DestroyWitness {
+	type Success = ();
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -72,11 +97,12 @@ pub mod pallet {
 
 		type DerivativeExtra: Member + Parameter + MaxEncodedLen;
 
-		type ExtrinsicsConfig: ExtrinsicsConfig<
-			Self::RuntimeOrigin,
-			Self::Original,
-			Self::Derivative
-		>;
+		type Ops: AssetDefinition<Id = Self::Original>
+			+ Create<
+				WithOrigin<Self::RuntimeOrigin, DerivativeAsset<Self::Original, Self::Derivative>>,
+			> + Destroy<WithOrigin<Self::RuntimeOrigin, DestroyWitness>>;
+
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::storage]
@@ -97,11 +123,14 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(crate) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
-		/// A derivative is registered.
-		DerivativeRegistered { original: OriginalOf<T, I>, derivative: DerivativeOf<T, I> },
+		/// A derivative is created.
+		DerivativeCreated { original: OriginalOf<T, I> },
 
-		/// A derivative is de-registered.
-		DerivativeDeregistered { original: OriginalOf<T, I>, derivative: DerivativeOf<T, I> },
+		/// A mapping between an original asset ID and a local derivative asset ID is created.
+		DerivativeMappingCreated { original: OriginalOf<T, I>, derivative_id: DerivativeOf<T, I> },
+
+		/// A derivative is destroyed.
+		DerivativeDestroyed { original: OriginalOf<T, I> },
 	}
 
 	#[pallet::error]
@@ -115,39 +144,39 @@ pub mod pallet {
 		/// Failed to find a derivative.
 		DerivativeNotFound,
 
-		/// Failed to get the derivative's extra data.
-		DerivativeExtraDataNotFound,
+		/// The provided asset metadata is invalid.
+		InvalidMetadata,
 
-		/// Failed to get an original.
-		OriginalNotFound,
+		/// The provided original asset is invalid.
+		InvalidOriginal,
 	}
 
-	#[pallet::call(weight(WeightInfoOf<T, I>))]
+	#[pallet::call(weight(T::WeightInfo))]
 	impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		#[pallet::call_index(0)]
 		pub fn create_derivative(
 			origin: OriginFor<T>,
 			original: OriginalOf<T, I>,
-			derivative_create_params: DerivativeCreateParamsOf<T, I>,
+			metadata: MetadataMap,
 		) -> DispatchResult {
-			<CreateOriginOf<T, I>>::ensure_origin(origin, &original)?;
+			let success = T::Ops::create(WithOrigin(origin, (original.clone(), metadata).into()))?;
 
-			let derivative = <DerivativeCreateOpOf<T, I>>::create(derivative_create_params)?;
+			if let Some(derivative) = success {
+				Self::try_register_derivative(&original, &derivative)?;
+			}
 
-			Self::try_register_derivative(&original, &derivative)
+			Self::deposit_event(Event::<T, I>::DerivativeCreated { original });
+
+			Ok(())
 		}
 
 		#[pallet::call_index(1)]
 		pub fn destroy_derivative(
 			origin: OriginFor<T>,
 			original: OriginalOf<T, I>,
+			destroy_witness: MetadataMap,
 		) -> DispatchResult {
-			<DestroyOriginOf<T, I>>::ensure_origin(origin, &original)?;
-
-			let derivative = <OriginalToDerivative<T, I>>::get(&original)
-				.ok_or(Error::<T, I>::NoDerivativeToDeregister)?;
-
-			<DerivativeDestroyOpOf<T, I>>::destroy(&derivative, JustDo::default())?;
+			T::Ops::destroy(&original, WithOrigin(origin, DestroyWitness(destroy_witness)))?;
 
 			Self::try_deregister_derivative_of(&original)
 		}
@@ -169,9 +198,9 @@ impl<T: Config<I>, I: 'static> DerivativesRegistry<OriginalOf<T, I>, DerivativeO
 		<OriginalToDerivative<T, I>>::insert(original, derivative);
 		<DerivativeToOriginal<T, I>>::insert(derivative, original);
 
-		Self::deposit_event(Event::<T, I>::DerivativeRegistered {
+		Self::deposit_event(Event::<T, I>::DerivativeMappingCreated {
 			original: original.clone(),
-			derivative: derivative.clone(),
+			derivative_id: derivative.clone(),
 		});
 
 		Ok(())
@@ -184,10 +213,7 @@ impl<T: Config<I>, I: 'static> DerivativesRegistry<OriginalOf<T, I>, DerivativeO
 		<DerivativeToOriginal<T, I>>::remove(&derivative);
 		<DerivativeExtra<T, I>>::remove(&derivative);
 
-		Self::deposit_event(Event::<T, I>::DerivativeDeregistered {
-			original: original.clone(),
-			derivative: derivative.clone(),
-		});
+		Self::deposit_event(Event::<T, I>::DerivativeDestroyed { original: original.clone() });
 
 		Ok(())
 	}
@@ -255,90 +281,17 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
-pub struct ProhibitiveWeightInfo;
-impl WeightInfo for ProhibitiveWeightInfo {
-	fn create_derivative() -> Weight {
-		Weight::MAX
-	}
-
-	fn destroy_derivative() -> Weight {
-		Weight::MAX
-	}
+pub struct DerivativeErrOps<Id>(PhantomData<Id>);
+impl<Id> AssetDefinition for DerivativeErrOps<Id> {
+	type Id = Id;
 }
-
-pub trait ExtrinsicsConfig<RuntimeOrigin, Original, Derivative> {
-	type CreateOrigin: EnsureOriginWithArg<RuntimeOrigin, Original>;
-	type DestroyOrigin: EnsureOriginWithArg<RuntimeOrigin, Original>;
-
-	type DerivativeCreateParams: Parameter + CreateStrategy<Success = Derivative>;
-	type DerivativeCreateOp: Create<Self::DerivativeCreateParams>;
-	type DerivativeDestroyOp: AssetDefinition<Id = Derivative> + Destroy<JustDo>;
-
-	type WeightInfo: WeightInfo;
-}
-
-impl<RO, O, D: Parameter + 'static> ExtrinsicsConfig<RO, O, D> for () {
-	type CreateOrigin = EnsureNever<()>;
-	type DestroyOrigin = EnsureNever<()>;
-
-	type DerivativeCreateParams = DerivativeEmptyParams<D>;
-	type DerivativeCreateOp = DerivativeAlwaysErrOps<D>;
-	type DerivativeDestroyOp = DerivativeAlwaysErrOps<D>;
-
-	type WeightInfo = ProhibitiveWeightInfo;
-}
-
-#[derive(Encode, Decode, TypeInfo, RuntimeDebug, Clone, PartialEq, Eq)]
-pub struct DerivativeEmptyParams<Derivative>(PhantomData<Derivative>);
-impl<Derivative> CreateStrategy for DerivativeEmptyParams<Derivative> {
-	type Success = Derivative;
-}
-
-pub struct DerivativeAlwaysErrOps<Derivative>(PhantomData<Derivative>);
-impl<Derivative> AssetDefinition for DerivativeAlwaysErrOps<Derivative> {
-	type Id = Derivative;
-}
-impl<D, S: CreateStrategy> Create<S> for DerivativeAlwaysErrOps<D> {
+impl<D, S: CreateStrategy> Create<S> for DerivativeErrOps<D> {
 	fn create(_strategy: S) -> Result<S::Success, DispatchError> {
 		Err(DispatchError::BadOrigin)
 	}
 }
-impl<D, S: DestroyStrategy> Destroy<S> for DerivativeAlwaysErrOps<D> {
+impl<D, S: DestroyStrategy> Destroy<S> for DerivativeErrOps<D> {
 	fn destroy(_id: &Self::Id, _strategy: S) -> Result<S::Success, DispatchError> {
 		Err(DispatchError::BadOrigin)
 	}
 }
-
-pub type ExtrinsicsConfigOf<T, I> = <T as Config<I>>::ExtrinsicsConfig;
-type RuntimeOriginOf<T> = <T as frame_system::Config>::RuntimeOrigin;
-
-pub type CreateOriginOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
-	RuntimeOriginOf<T>,
-	OriginalOf<T, I>,
-	DerivativeOf<T, I>,
->>::CreateOrigin;
-pub type DestroyOriginOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
-	RuntimeOriginOf<T>,
-	OriginalOf<T, I>,
-	DerivativeOf<T, I>,
->>::DestroyOrigin;
-pub type DerivativeCreateParamsOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
-	RuntimeOriginOf<T>,
-	OriginalOf<T, I>,
-	DerivativeOf<T, I>,
->>::DerivativeCreateParams;
-pub type DerivativeCreateOpOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
-	RuntimeOriginOf<T>,
-	OriginalOf<T, I>,
-	DerivativeOf<T, I>,
->>::DerivativeCreateOp;
-pub type DerivativeDestroyOpOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
-	RuntimeOriginOf<T>,
-	OriginalOf<T, I>,
-	DerivativeOf<T, I>,
->>::DerivativeDestroyOp;
-pub type WeightInfoOf<T, I> = <ExtrinsicsConfigOf<T, I> as ExtrinsicsConfig<
-	RuntimeOriginOf<T>,
-	OriginalOf<T, I>,
-	DerivativeOf<T, I>,
->>::WeightInfo;

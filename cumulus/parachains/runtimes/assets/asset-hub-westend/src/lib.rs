@@ -46,8 +46,8 @@ use frame_support::{
 	traits::{
 		fungible, fungibles,
 		tokens::{
-			imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, Fortitude::Polite,
-			Preservation::Expendable, ConversionToAssetBalance,
+			imbalance::ResolveAssetTo, nonfungibles_v2::Inspect, ConversionToAssetBalance,
+			Fortitude::Polite, Preservation::Expendable,
 		},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, Equals,
 		InstanceFilter, MapSuccess, Nothing, TransformOrigin,
@@ -73,7 +73,7 @@ use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160};
 use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{
-		AccountIdConversion, BlakeTwo256, Block as BlockT, ConvertInto, Replace, MaybeEquivalence,
+		AccountIdConversion, BlakeTwo256, Block as BlockT, ConvertInto, MaybeEquivalence, Replace,
 		Saturating, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
@@ -87,9 +87,8 @@ use testnet_parachains_constants::westend::{
 };
 use xcm_config::{
 	ForeignAssetsConvertedConcreteId, LocationToAccountId, PoolAssetsConvertedConcreteId,
-	TrustBackedAssetsConvertedConcreteId, TrustBackedAssetsPalletLocation, WestendLocation,
-	TreasuryAccount,
-	XcmOriginToTransactDispatchOrigin,
+	TreasuryAccount, TrustBackedAssetsConvertedConcreteId, TrustBackedAssetsPalletLocation,
+	WestendLocation, XcmOriginToTransactDispatchOrigin,
 };
 
 #[cfg(any(feature = "std", test))]
@@ -556,8 +555,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 						RuntimeCall::Utility { .. } |
 						RuntimeCall::Multisig { .. } |
 						RuntimeCall::NftFractionalization { .. } |
-						RuntimeCall::Nfts { .. } |
-						RuntimeCall::Uniques { .. }
+						RuntimeCall::Nfts { .. } | RuntimeCall::Uniques { .. }
 				)
 			},
 			ProxyType::AssetOwner => matches!(
@@ -837,7 +835,7 @@ parameter_types! {
 	pub const ForeignUniquesZeroDeposit: Balance = 0;
 }
 
-impl pallet_uniques::Config<pallet_uniques::Instance1> for Runtime {
+impl pallet_uniques::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type CollectionId = CollectionId;
 	type ItemId = ItemId;
@@ -856,30 +854,6 @@ impl pallet_uniques::Config<pallet_uniques::Instance1> for Runtime {
 	type Helper = ();
 	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
 	type SystemCreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureNever<AccountId>>;
-	type Locker = ();
-}
-
-impl pallet_uniques::Config<pallet_uniques::Instance2> for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type CollectionId = xcm::v4::Location;
-	type ItemId = xcm::v4::AssetInstance;
-	type Currency = Balances;
-	type ForceOrigin = AssetsForceOrigin;
-	type CollectionDeposit = ForeignUniquesZeroDeposit;
-	type ItemDeposit = ForeignUniquesZeroDeposit;
-	type MetadataDepositBase = ForeignUniquesZeroDeposit;
-	type AttributeDepositBase = ForeignUniquesZeroDeposit;
-	type DepositPerByte = ForeignUniquesZeroDeposit;
-	type StringLimit = ConstU32<0>;
-	type KeyLimit = ConstU32<0>;
-	type ValueLimit = ConstU32<0>;
-	type WeightInfo = weights::pallet_uniques::WeightInfo<Runtime>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type Helper = ();
-	type CreateOrigin =
-		AsEnsureOriginWithArg<MapSuccess<AssetsForceOrigin, Replace<TreasuryAccount>>>;
-	type SystemCreateOrigin =
-		AsEnsureOriginWithArg<MapSuccess<EnsureSigned<AccountId>, Replace<TreasuryAccount>>>;
 	type Locker = ();
 }
 
@@ -1062,7 +1036,7 @@ construct_runtime!(
 
 		// The main stage.
 		Assets: pallet_assets::<Instance1> = 50,
-		Uniques: pallet_uniques::<Instance1> = 51,
+		Uniques: pallet_uniques = 51,
 		Nfts: pallet_nfts = 52,
 		ForeignAssets: pallet_assets::<Instance2> = 53,
 		NftFractionalization: pallet_nft_fractionalization = 54,
@@ -1072,7 +1046,6 @@ construct_runtime!(
 		ForeignAssetsFreezer: pallet_assets_freezer::<Instance2> = 58,
 		PoolAssetsFreezer: pallet_assets_freezer::<Instance3> = 59,
 		Revive: pallet_revive = 60,
-		ForeignUniques: pallet_uniques::<Instance2> = 61,
 
 		StateTrieMigration: pallet_state_trie_migration = 70,
 
