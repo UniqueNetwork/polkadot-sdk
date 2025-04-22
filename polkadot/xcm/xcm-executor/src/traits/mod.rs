@@ -35,7 +35,8 @@ mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod token_matching;
 pub use token_matching::{
-	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
+	Error, MatchesFungible, MatchesFungibles, MatchesInstance, MatchesNonFungible,
+	MatchesNonFungibles,
 };
 mod on_response;
 pub use on_response::{OnResponse, QueryHandler, QueryResponseStatus, VersionChangeNotifier};

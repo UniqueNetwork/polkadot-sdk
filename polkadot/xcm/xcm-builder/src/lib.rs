@@ -33,11 +33,14 @@ mod asset_conversion;
 #[allow(deprecated)]
 pub use asset_conversion::ConvertedConcreteAssetId;
 pub use asset_conversion::{
-	AsPrefixedGeneralIndex, ConvertedConcreteId, MatchedConvertedConcreteId,
+	AsPrefixedGeneralIndex, ConvertedConcreteId, MatchClasslessInstances, MatchInClassInstances,
+	MatchedConvertedConcreteId,
 };
 
 mod asset_exchange;
 pub use asset_exchange::SingleAssetExchangeAdapter;
+
+pub mod unique_instances;
 
 mod barriers;
 pub use barriers::{
