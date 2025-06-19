@@ -1401,7 +1401,7 @@ fn reserve_withdraw_from_untrusted_reserve_fails() {
 			bx!(TransferType::DestinationReserve),
 			bx!(fee_id.into()),
 			bx!(TransferType::DestinationReserve),
-			bx!(VersionedXcm::from(Xcm::<()>::new())),
+			bx!(VersionedXcm::from(Xcm::<()>::default())),
 			Unlimited,
 		);
 		assert_err!(
@@ -1421,7 +1421,7 @@ fn reserve_withdraw_from_untrusted_reserve_fails() {
 			InitiateReserveWithdraw {
 				assets: Wild(All),
 				reserve: destination,
-				xcm: Xcm::<()>::new(),
+				xcm: Xcm::<()>::default(),
 			},
 		]);
 		let result = <AssetHubWestend as AssetHubWestendPallet>::PolkadotXcm::execute(

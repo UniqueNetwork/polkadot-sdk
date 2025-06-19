@@ -61,10 +61,10 @@ fn treasury_creates_asset_reward_pool() {
 
 		let create_pool_call =
 			WestendRuntimeCall::XcmPallet(pallet_xcm::Call::<WestendRuntime>::send {
-				dest: bx!(VersionedLocation::V4(
-					xcm::v4::Junction::Parachain(AssetHubWestend::para_id().into()).into()
+				dest: bx!(VersionedLocation::V6(
+					xcm::latest::Junction::Parachain(AssetHubWestend::para_id().into()).into()
 				)),
-				message: bx!(VersionedXcm::V5(Xcm(vec![
+				message: bx!(VersionedXcm::from(Xcm::new(vec![
 					UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 					Transact {
 						origin_kind: OriginKind::SovereignAccount,

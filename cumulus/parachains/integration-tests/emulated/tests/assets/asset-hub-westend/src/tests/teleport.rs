@@ -531,7 +531,7 @@ fn teleport_to_untrusted_chain_fails() {
 			bx!(TransferType::Teleport),
 			bx!(fee_id.into()),
 			bx!(TransferType::Teleport),
-			bx!(VersionedXcm::from(Xcm::<()>::new())),
+			bx!(VersionedXcm::from(Xcm::<()>::default())),
 			Unlimited,
 		);
 		assert_err!(
@@ -548,7 +548,7 @@ fn teleport_to_untrusted_chain_fails() {
 	AssetHubWestend::execute_with(|| {
 		let xcm: Xcm<asset_hub_westend_runtime::RuntimeCall> = Xcm::new(vec![
 			WithdrawAsset(assets.into()),
-			InitiateTeleport { assets: Wild(All), dest: destination, xcm: Xcm::<()>::new() },
+			InitiateTeleport { assets: Wild(All), dest: destination, xcm: Xcm::<()>::default() },
 		]);
 		let result = <AssetHubWestend as AssetHubWestendPallet>::PolkadotXcm::execute(
 			signed_origin,

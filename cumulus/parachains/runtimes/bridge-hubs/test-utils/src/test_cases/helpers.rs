@@ -324,7 +324,7 @@ pub fn relayed_incoming_message_works<Runtime, AllPalletsWithoutSystem, MPI>(
 			let message_nonce = 1;
 
 			let xcm = vec![Instruction::<()>::ClearOrigin; 42];
-			let expected_dispatch = xcm::latest::Xcm::<()>({
+			let expected_dispatch = xcm::latest::Xcm::<()>::new({
 				let mut expected_instructions = xcm.clone();
 				// dispatch prepends bridge pallet instance
 				expected_instructions.insert(

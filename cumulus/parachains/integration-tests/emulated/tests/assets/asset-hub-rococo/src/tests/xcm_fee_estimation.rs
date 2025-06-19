@@ -80,7 +80,7 @@ fn transfer_assets_para_to_para_through_ah_call(
 	type RuntimeCall = <PenpalA as Chain>::RuntimeCall;
 
 	let asset_hub_location: Location = PenpalB::sibling_location_of(AssetHubRococo::para_id());
-	let custom_xcm_on_dest = Xcm::<()>(vec![DepositAsset {
+	let custom_xcm_on_dest = Xcm::<()>::new(vec![DepositAsset {
 		assets: Wild(AllCounted(test.args.assets.len() as u32)),
 		beneficiary: test.args.beneficiary,
 	}]);
@@ -139,7 +139,7 @@ fn multi_hop_works() {
 
 	// We get them from the PenpalA closure.
 	let mut delivery_fees_amount = 0;
-	let mut remote_message = VersionedXcm::from(Xcm::new(vec::new()));
+	let mut remote_message = VersionedXcm::from(Xcm::default());
 	<PenpalA as TestExt>::execute_with(|| {
 		type Runtime = <PenpalA as Chain>::Runtime;
 		type OriginCaller = <PenpalA as Chain>::OriginCaller;
@@ -166,7 +166,7 @@ fn multi_hop_works() {
 	// These are set in the AssetHub closure.
 	let mut intermediate_execution_fees = 0;
 	let mut intermediate_delivery_fees_amount = 0;
-	let mut intermediate_remote_message = VersionedXcm::from(Xcm::<()>(Vec::new()));
+	let mut intermediate_remote_message = VersionedXcm::from(Xcm::<()>::default());
 	<AssetHubRococo as TestExt>::execute_with(|| {
 		type Runtime = <AssetHubRococo as Chain>::Runtime;
 		type RuntimeCall = <AssetHubRococo as Chain>::RuntimeCall;

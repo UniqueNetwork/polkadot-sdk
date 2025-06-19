@@ -22,8 +22,8 @@ use codec::{
 use educe::Educe;
 use scale_info::TypeInfo;
 
-#[derive(Educe, Default, Encode, TypeInfo)]
-#[educe(Clone, Eq, PartialEq, Debug)]
+#[derive(Educe, Encode, TypeInfo)]
+#[educe(Clone, Eq, PartialEq, Debug, Default(bound = false))]
 #[scale_info(bounds(Instruction: TypeInfo))]
 pub struct XcmBase<Instruction>(pub Vec<Instruction>);
 

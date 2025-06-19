@@ -59,7 +59,7 @@ fn transfer_and_transact_in_same_xcm(
 		assets: vec![],
 		remote_xcm: xcm_on_dest,
 	}]);
-	let xcm = Xcm::<()>(vec![
+	let xcm = Xcm::<()>::new(vec![
 		WithdrawAsset(usdt.into()),
 		PayFees { asset: local_fees },
 		InitiateTransfer {

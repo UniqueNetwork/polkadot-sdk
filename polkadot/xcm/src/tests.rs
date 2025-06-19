@@ -70,6 +70,18 @@ fn encode_decode_versioned_response_v5() {
 }
 
 #[test]
+fn encode_decode_versioned_response_v6() {
+	let response = VersionedResponse::V6(v6::Response::Null);
+	let encoded = response.encode();
+
+	assert_eq!(encoded, hex_literal::hex!("0600"), "encode format changed");
+	assert_eq!(encoded[0], 6, "bad version number");
+
+	let decoded = VersionedResponse::decode(&mut &encoded[..]).unwrap();
+	assert_eq!(response, decoded);
+}
+
+#[test]
 fn encode_decode_versioned_location_v3() {
 	let location = VersionedLocation::V3(v3::MultiLocation::new(0, v3::Junctions::Here));
 	let encoded = location.encode();
@@ -100,6 +112,18 @@ fn encode_decode_versioned_location_v5() {
 
 	assert_eq!(encoded, hex_literal::hex!("050000"), "encode format changed");
 	assert_eq!(encoded[0], 5, "bad version number");
+
+	let decoded = VersionedLocation::decode(&mut &encoded[..]).unwrap();
+	assert_eq!(location, decoded);
+}
+
+#[test]
+fn encode_decode_versioned_location_v6() {
+	let location = VersionedLocation::V6(v6::Location::new(0, v6::Junctions::Here));
+	let encoded = location.encode();
+
+	assert_eq!(encoded, hex_literal::hex!("060000"), "encode format changed");
+	assert_eq!(encoded[0], 6, "bad version number");
 
 	let decoded = VersionedLocation::decode(&mut &encoded[..]).unwrap();
 	assert_eq!(location, decoded);
@@ -142,6 +166,18 @@ fn encode_decode_versioned_interior_location_v5() {
 }
 
 #[test]
+fn encode_decode_versioned_interior_location_v6() {
+	let location = VersionedInteriorLocation::V6(v6::InteriorLocation::Here);
+	let encoded = location.encode();
+
+	assert_eq!(encoded, hex_literal::hex!("0600"), "encode format changed");
+	assert_eq!(encoded[0], 6, "bad version number");
+
+	let decoded = VersionedInteriorLocation::decode(&mut &encoded[..]).unwrap();
+	assert_eq!(location, decoded);
+}
+
+#[test]
 fn encode_decode_versioned_asset_v3() {
 	let asset = VersionedAsset::V3(v3::MultiAsset::from((v3::MultiLocation::default(), 1)));
 	let encoded = asset.encode();
@@ -172,6 +208,18 @@ fn encode_decode_versioned_asset_v5() {
 
 	assert_eq!(encoded, hex_literal::hex!("0500000004"), "encode format changed");
 	assert_eq!(encoded[0], 5, "bad version number");
+
+	let decoded = VersionedAsset::decode(&mut &encoded[..]).unwrap();
+	assert_eq!(asset, decoded);
+}
+
+#[test]
+fn encode_decode_versioned_asset_v6() {
+	let asset = VersionedAsset::V6(v6::Asset::from((v5::Location::default(), 1)));
+	let encoded = asset.encode();
+
+	assert_eq!(encoded, hex_literal::hex!("0600000004"), "encode format changed");
+	assert_eq!(encoded[0], 6, "bad version number");
 
 	let decoded = VersionedAsset::decode(&mut &encoded[..]).unwrap();
 	assert_eq!(asset, decoded);
@@ -220,6 +268,20 @@ fn encode_decode_versioned_assets_v5() {
 }
 
 #[test]
+fn encode_decode_versioned_assets_v6() {
+	let assets = VersionedAssets::V6(v6::Assets::from(vec![
+		(v5::Asset::from((v6::Location::default(), 1))),
+	]));
+	let encoded = assets.encode();
+
+	assert_eq!(encoded, hex_literal::hex!("060400000004"), "encode format changed");
+	assert_eq!(encoded[0], 6, "bad version number");
+
+	let decoded = VersionedAssets::decode(&mut &encoded[..]).unwrap();
+	assert_eq!(assets, decoded);
+}
+
+#[test]
 fn encode_decode_versioned_xcm_v3() {
 	let xcm = VersionedXcm::V3(v3::Xcm::<()>::new());
 	let encoded = xcm.encode();
@@ -250,6 +312,18 @@ fn encode_decode_versioned_xcm_v5() {
 
 	assert_eq!(encoded, hex_literal::hex!("0500"), "encode format changed");
 	assert_eq!(encoded[0], 5, "bad version number");
+
+	let decoded = VersionedXcm::decode(&mut &encoded[..]).unwrap();
+	assert_eq!(xcm, decoded);
+}
+
+#[test]
+fn encode_decode_versioned_xcm_v6() {
+	let xcm = VersionedXcm::V6(v6::Xcm::<()>::default());
+	let encoded = xcm.encode();
+
+	assert_eq!(encoded, hex_literal::hex!("0600"), "encode format changed");
+	assert_eq!(encoded[0], 6, "bad version number");
 
 	let decoded = VersionedXcm::decode(&mut &encoded[..]).unwrap();
 	assert_eq!(xcm, decoded);

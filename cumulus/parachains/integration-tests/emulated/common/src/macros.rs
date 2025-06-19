@@ -482,7 +482,7 @@ macro_rules! test_can_estimate_and_pay_exact_fees {
 			// We get these from the closure.
 			let mut local_execution_fees = 0;
 			let mut local_delivery_fees = 0;
-			let mut remote_message = VersionedXcm::from(Xcm::<()>(Vec::new()));
+			let mut remote_message = VersionedXcm::from(Xcm::<()>::default());
 			<$sender_para as TestExt>::execute_with(|| {
 				type Runtime = <$sender_para as Chain>::Runtime;
 				type OriginCaller = <$sender_para as Chain>::OriginCaller;
@@ -520,7 +520,7 @@ macro_rules! test_can_estimate_and_pay_exact_fees {
 			// These are set in the AssetHub closure.
 			let mut intermediate_execution_fees = 0;
 			let mut intermediate_delivery_fees = 0;
-			let mut intermediate_remote_message = VersionedXcm::from(Xcm::<()>(Vec::new()));
+			let mut intermediate_remote_message = VersionedXcm::from(Xcm::<()>::default());
 			<$asset_hub as TestExt>::execute_with(|| {
 				type Runtime = <$asset_hub as Chain>::Runtime;
 				type RuntimeCall = <$asset_hub as Chain>::RuntimeCall;

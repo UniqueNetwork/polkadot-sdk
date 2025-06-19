@@ -1618,6 +1618,7 @@ where
 			AssetKind = xcm::v5::Location,
 			Balance = <Runtime as pallet_balances::Config>::Balance,
 		>,
+	RuntimeCall: 'static,
 	ValidatorIdOf<Runtime>: From<AccountIdOf<Runtime>>,
 	RuntimeOrigin: OriginTrait<AccountId = <Runtime as frame_system::Config>::AccountId>,
 	<<Runtime as frame_system::Config>::Lookup as StaticLookup>::Source:

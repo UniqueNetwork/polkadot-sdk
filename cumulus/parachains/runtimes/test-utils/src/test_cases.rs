@@ -149,6 +149,7 @@ where
 		+ cumulus_pallet_parachain_system::Config
 		+ cumulus_pallet_xcmp_queue::Config
 		+ pallet_timestamp::Config,
+	RuntimeCall: 'static,
 	ValidatorIdOf<Runtime>: From<AccountIdOf<Runtime>>,
 	RuntimeOrigin: OriginTrait<AccountId = <Runtime as frame_system::Config>::AccountId>,
 	<<Runtime as frame_system::Config>::Lookup as StaticLookup>::Source:
