@@ -17,13 +17,14 @@
 //! Procedural macros used in XCM.
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput};
+use syn::{parse_macro_input, DeriveInput, ItemEnum};
 
 mod builder_pattern;
 mod enum_variants;
 mod v3;
 mod v4;
 mod v5;
+mod versioned;
 mod weight_info;
 
 #[proc_macro_derive(XcmWeightInfoTrait)]
@@ -92,6 +93,20 @@ pub fn derive_builder(input: TokenStream) -> TokenStream {
 pub fn derive_num_variants(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as DeriveInput);
 	enum_variants::derive(input)
+		.unwrap_or_else(syn::Error::into_compile_error)
+		.into()
+}
+
+#[proc_macro_attribute]
+pub fn versioned(attr: TokenStream, input: TokenStream) -> TokenStream {
+	if !attr.is_empty() {
+		return syn::Error::new(proc_macro2::Span::call_site(), "unexpected attribute parameters")
+			.into_compile_error()
+			.into();
+	}
+
+	let item_enum = parse_macro_input!(input as ItemEnum);
+	versioned::versioned(item_enum)
 		.unwrap_or_else(syn::Error::into_compile_error)
 		.into()
 }

@@ -35,6 +35,8 @@ pub mod v3;
 pub mod v4;
 pub mod v5;
 
+mod instruction;
+
 pub mod lts {
 	pub use super::v4::*;
 }
@@ -68,6 +70,10 @@ impl Decode for Unsupported {
 	fn decode<I: Input>(_: &mut I) -> Result<Self, CodecError> {
 		Err("Not decodable".into())
 	}
+}
+
+pub trait Versioned<const VERSION: Version> {
+	type Type;
 }
 
 /// Attempt to convert `self` into a particular version of itself.
