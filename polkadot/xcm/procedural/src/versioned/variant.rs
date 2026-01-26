@@ -5,28 +5,29 @@ use std::{collections::HashSet, ops::Range};
 use syn::{
 	parse::ParseStream, parse_quote, spanned::Spanned, AngleBracketedGenericArguments, Attribute,
 	Error, ExprRange, Fields, GenericArgument, Generics, Ident, ItemEnum, PathArguments, Result,
-	Token, Type, TypeParam, Variant, Visibility, WherePredicate,
+	Token, Type, TypeParam, Variant, Visibility, WherePredicate, MetaNameValue,
 };
 
-use super::{find_named_attr, get_version_val};
+use super::{find_named_attr, get_version_val, FilteredGenerics};
 
 mod kw {
 	syn::custom_keyword!(flatten);
 }
 
+#[derive(Debug)]
 pub(crate) struct VersionVariant {
 	raw: Variant,
-	version: Version,
+	version: Version, // FIXME remove this
 	variant_struct: VersionVariantStruct,
 	next_version_conv: Option<NextVersionConversion>,
 }
 impl VersionVariant {
-	pub fn new(
+	pub fn from(
 		toplevel_version_range: &Range<Version>,
 		version: Version,
 		mut raw: Variant,
 		enum_generics: &Generics,
-	) -> Result<Self> {
+	) -> Result<Option<Self>> {
 		Self::flatten_versioned_type(version, &mut raw)?;
 
 		let variant_struct = VersionVariantStruct::new(&mut raw, enum_generics)?;
@@ -34,10 +35,15 @@ impl VersionVariant {
 		let variant_version_range =
 			Self::get_variant_version_range(&mut raw, toplevel_version_range)?;
 
-		let is_last_toplevel_version = version == toplevel_version_range.end;
-		let is_last_variant_version = version == variant_version_range.end;
+		if version < variant_version_range.start || version >= variant_version_range.end {
+			return Ok(None);
+		}
 
-		let next_version_conv;
+		let next_version = version + 1;
+		let is_last_toplevel_version = next_version == toplevel_version_range.end;
+		let is_last_variant_version = next_version == variant_version_range.end;
+
+		let mut next_version_conv = (!is_last_toplevel_version).then_some(NextVersionConversion::AutoConversion);
 
 		if let Some((removed_since, removed_since_span)) =
 			Self::get_removed_since_version(&mut raw)?
@@ -49,7 +55,11 @@ impl VersionVariant {
 				));
 			}
 
-			next_version_conv = None;
+			if version >= removed_since {
+				return Ok(None);
+			} else if is_last_variant_version {
+				next_version_conv = None;
+			}
 		} else if let Some(superseded_by) = Self::superseded_by_variant(&mut raw)? {
 			if superseded_by == raw.ident {
 				return Err(Error::new(superseded_by.span(), "`superseded_by` must point to an variant with a different name. You can simply remove this attribute if the variant changed its format in the new version"));
@@ -58,15 +68,13 @@ impl VersionVariant {
 			}
 
 			next_version_conv = Some(NextVersionConversion::UserConversion(superseded_by));
-		} else if is_last_toplevel_version {
-			next_version_conv = None;
-		} else if is_last_variant_version {
-			next_version_conv = Some(NextVersionConversion::UserConversion(raw.ident.clone()));
-		} else {
-			next_version_conv = Some(NextVersionConversion::AutoConversion);
 		}
 
-		Ok(Self { raw, version, variant_struct, next_version_conv })
+		if is_last_variant_version && next_version_conv == Some(NextVersionConversion::AutoConversion) {
+			next_version_conv = Some(NextVersionConversion::UserConversion(raw.ident.clone()));
+		}
+
+		Ok(Some(Self { raw, version, variant_struct, next_version_conv }))
 	}
 
 	pub fn next_version_conversion(&self) -> Option<&NextVersionConversion> {
@@ -125,7 +133,8 @@ impl VersionVariant {
 			return Ok(None);
 		};
 
-		let meta = removed_attr.meta.require_name_value()?;
+		let meta = removed_attr.meta.require_list()?;
+		let meta: MetaNameValue = meta.parse_args()?;
 
 		if !meta.path.is_ident("since") {
 			return Err(Error::new(meta.path.span(), "the `since` parameter is expected"));
@@ -166,16 +175,16 @@ impl VersionVariant {
 	}
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum NextVersionConversion {
 	AutoConversion,
 	UserConversion(Ident),
 }
 
+#[derive(Debug)]
 pub(crate) struct VersionVariantStruct {
 	attrs: Vec<Attribute>,
-	impl_generics: Option<TokenStream2>,
-	ty_generics: Option<TokenStream2>,
-	where_clause: Option<TokenStream2>,
+	filtered_generics: FilteredGenerics,
 	ident: Ident,
 	fields: Fields,
 }
@@ -189,38 +198,7 @@ impl VersionVariantStruct {
 			})
 			.collect::<Result<Vec<_>>>()?;
 
-		let variant_ident_types = variant
-			.fields
-			.iter()
-			.map(|field| Self::all_type_idents(&field.ty))
-			.flatten()
-			.collect::<HashSet<_>>();
-
-		let impl_generics = enum_generics
-			.type_params()
-			.filter(|param| variant_ident_types.contains(&param.ident))
-			.cloned()
-			.collect::<Vec<_>>();
-		let ty_generics = impl_generics.iter().map(|param| param.ident.clone()).collect::<Vec<_>>();
-
-		let where_clause = if let Some(wc) = &enum_generics.where_clause {
-			let predicates = wc
-				.predicates
-				.iter()
-				.filter_map(|p| {
-					if let WherePredicate::Type(ty_pred) = p {
-						let type_ident = Self::type_ident(&ty_pred.bounded_ty)?;
-						ty_generics.contains(&type_ident).then_some(p)
-					} else {
-						None
-					}
-				})
-				.collect::<Vec<_>>();
-
-			(!predicates.is_empty()).then(|| quote!(where #(#predicates),*))
-		} else {
-			None
-		};
+		let filtered_generics = FilteredGenerics::from_enum_variant(variant, enum_generics);
 
 		let ident = variant.ident.clone();
 		let mut fields = variant.fields.clone();
@@ -230,16 +208,19 @@ impl VersionVariantStruct {
 
 		Ok(Self {
 			attrs,
-			impl_generics: (!impl_generics.is_empty()).then_some(quote!(< #(#impl_generics),* >)),
-			ty_generics: (!ty_generics.is_empty()).then_some(quote!(< #(#ty_generics),* >)),
-			where_clause,
+			filtered_generics,
 			ident,
 			fields,
 		})
 	}
 
+	pub fn generics(&self) -> &FilteredGenerics {
+		&self.filtered_generics
+	}
+
 	pub fn expand_decl(&self) -> TokenStream2 {
-		let Self { attrs, impl_generics, ty_generics, where_clause, ident, fields } = self;
+		let Self { attrs, filtered_generics, ident, fields } = self;
+		let FilteredGenerics { impl_generics, ty_generics, where_clause } = filtered_generics;
 
 		let named_fields = matches!(&fields, Fields::Named(_));
 		let end_semicolon = (!named_fields).then_some(<Token![;]>::default());
@@ -291,7 +272,8 @@ impl VersionVariantStruct {
 		next_version: Version,
 		next_version_conv: Option<&NextVersionConversion>,
 	) -> TokenStream2 {
-		let Self { attrs, impl_generics, ty_generics, where_clause, ident, fields } = self;
+		let Self { attrs, filtered_generics, ident, fields } = self;
+		let FilteredGenerics { impl_generics, ty_generics, where_clause } = filtered_generics;
 
 		if let Some(NextVersionConversion::AutoConversion) = next_version_conv {
 			let current_version_mod = format_ident!["v{current_version}"];
@@ -326,63 +308,6 @@ impl VersionVariantStruct {
 			}
 		} else {
 			quote!()
-		}
-	}
-
-	pub fn generics_for_impl(
-		&self,
-	) -> (Option<&TokenStream2>, Option<&TokenStream2>, Option<&TokenStream2>) {
-		(self.impl_generics.as_ref(), self.ty_generics.as_ref(), self.where_clause.as_ref())
-	}
-
-	fn type_ident(ty: &Type) -> Option<Ident> {
-		match ty {
-			Type::Path(type_path) =>
-				if let Some(qself) = &type_path.qself {
-					Self::type_ident(&qself.ty)
-				} else {
-					type_path.path.get_ident().cloned()
-				},
-			_ => None,
-		}
-	}
-
-	fn all_type_idents(ty: &Type) -> impl Iterator<Item = Ident> {
-		match ty {
-			Type::Path(type_path) =>
-				if let Some(qself) = &type_path.qself {
-					Self::all_type_idents(&qself.ty)
-				} else {
-					if let Some(type_ident) = type_path.path.get_ident().cloned() {
-						return vec![type_ident].into_iter();
-					}
-
-					let Some(last_seg) = type_path.path.segments.last() else {
-						return vec![].into_iter();
-					};
-
-					let mut idents = vec![];
-					if let PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-						args,
-						..
-					}) = &last_seg.arguments
-					{
-						let generics_types = args.iter().filter_map(|arg| {
-							if let GenericArgument::Type(ty) = arg {
-								Some(ty)
-							} else {
-								None
-							}
-						});
-
-						for ty in generics_types {
-							idents.extend(Self::all_type_idents(ty));
-						}
-					}
-
-					idents.into_iter()
-				},
-			_ => vec![].into_iter(),
 		}
 	}
 }

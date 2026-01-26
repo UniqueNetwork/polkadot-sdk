@@ -9,10 +9,14 @@ use syn::{
 };
 
 mod variant;
+mod version_enum;
+mod filtered_generics;
 
-use variant::{NextVersionConversion, VersionVariant};
+pub use variant::*;
+pub use version_enum::*;
+pub use filtered_generics::*;
 
-type Version = u32;
+pub(crate) type Version = u32;
 
 pub fn versioned(item_enum: ItemEnum) -> Result<TokenStream2> {
 	Versioned::new(item_enum)?.expand()
@@ -61,13 +65,13 @@ impl Versioned {
 				.variants
 				.iter()
 				.cloned()
-				.map(|variant| {
-					VersionVariant::new(
+				.filter_map(|variant| {
+					VersionVariant::from(
 						&toplevel_version_range,
 						version,
 						variant,
 						&item_enum.generics,
-					)
+					).transpose()
 				})
 				.collect::<Result<Vec<_>>>()?;
 
@@ -134,7 +138,7 @@ impl Versioned {
 				};
 
 				let as_struct = v.as_struct();
-				let (_, struct_ty_generics, _) = as_struct.generics_for_impl();
+				let struct_ty_generics = as_struct.generics().ty_generics.as_ref();
 
 				quote! {
 					impl #impl_generics From<#variant_ident #struct_ty_generics> for #ident #ty_generics #where_clause {
@@ -152,7 +156,6 @@ impl Versioned {
 
 					#(#variants_as_structs)*
 
-					// TODO make this enum optional
 					#(#version_enum_attrs)*
 					pub enum #ident #version_enum_generics {
 						#(#variants),*
@@ -349,7 +352,7 @@ impl Versioned {
 				let auto_conv_variant = next_version_variants
 					.iter()
 					.find(|nv| nv.inner().ident == variant.inner().ident)
-					.expect("auto conversion variants must exist in the next version");
+					.expect(&format!["auto conversion variants must exist in the next version: {variant:#?}\n{next_version_variants:#?}"]);
 
 				Ok(Some(auto_conv_variant))
 			},
